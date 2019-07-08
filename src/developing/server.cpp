@@ -8,12 +8,13 @@ int main()
 	socketinit();
 	socket_connect s_server;
 	s_server.server_init("127.0.0.2", 8010);
-	thread::id tid;
+	int tid;
 	Mat src;
 	while (1)
 	{
-		if (s_server.recv_buff_pop(tid, src))
+		if (s_server.recv_buff_pop(src, tid))
 		{
+			std::cout << "from " << tid << std::endl;
 			imshow("src", src);
 			cvWaitKey(1);
 		}

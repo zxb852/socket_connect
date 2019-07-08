@@ -16,7 +16,7 @@ int main()
 		cap >> frame;
 		//imshow("frame", frame);
 		resize(frame, frame, Size(160, 140));
-		s_client.send_buff_push(s_client.threadid,frame.clone());
+		s_client.send_buff_push(frame.clone(),1);
 		//cvWaitKey(100);
 	}
 	s_client.disconnect();

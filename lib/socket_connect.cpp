@@ -22,10 +22,16 @@ void socket_connect::updatesendbuff()
 		{
 			socket_connect* childsocket = i.second;
 			if (!send_q_mat.empty())
-				if (send_q_mat.front().first == threadid || send_q_mat.front().first == i.first)
+			{
+				if (childrenctrl[i.first] == 1 && send_q_mat.front().first.second== 1)
 					childsocket->send_q_mat.push(send_q_mat.front());
+				else if (send_q_mat.front().first.second == 2 || send_q_mat.front().first.second == i.first)
+					childsocket->send_q_mat.push(send_q_mat.front());
+			}
 			if (!send_q_sample.empty())
-				if (send_q_sample.front().first == threadid || send_q_sample.front().first == i.first)
+				if (childrenctrl[i.first] == 1 && send_q_sample.front().first.second == 1)
+					childsocket->send_q_sample.push(send_q_sample.front());
+				if (send_q_sample.front().first.second == 2 || send_q_sample.front().first.second == i.first)
 					childsocket->send_q_sample.push(send_q_sample.front());
 		}
 	}
@@ -44,13 +50,17 @@ void socket_connect::updaterecvbuff()
 		socket_connect* childsocket = i.second;
 		if (!childsocket->recv_q_mat.empty())
 		{
-			recv_q_mat.push(childsocket->recv_q_mat.front());
+			auto &step = childsocket->recv_q_mat.front();
+			step.first.first = i.first;
+			recv_q_mat.push(step);
 			childsocket->recv_q_mat.pop();
 		}
 
 		if (!childsocket->recv_q_sample.empty())
 		{
-			recv_q_sample.push(childsocket->recv_q_sample.front());
+			auto &step = childsocket->recv_q_sample.front();
+			step.first.first = i.first;
+			recv_q_sample.push(step);
 			childsocket->recv_q_sample.pop();
 		}
 	}
@@ -89,9 +99,9 @@ void socket_connect::s_listen()
 	std::cout << "recv thread id :" << t2.get_id() << std::endl;
 	t2.detach();
 
-	socketctl->threadid = t1.get_id();
-	children[t1.get_id()] = socketctl;
-	childrenctrl[t1.get_id()] = 0;
+	children[children_id] = socketctl;
+	childrenctrl[children_id] = 0;
+	children_id++;
 }
 
 void socket_connect::server_init(const char * ip, int port)
@@ -135,27 +145,27 @@ bool socket_connect::s_connect(const char *ip, int port)
 	return true;
 }
 
-void socket_connect::send_buff_push(socketid tid, Mat image)
+void socket_connect::send_buff_push(Mat image, int tid)
 {
 	io_mutex.lock();
-	send_q_mat.push(std::pair<socketid, Mat>(tid, image));
+	send_q_mat.push(std::pair<data_head, Mat>(data_head(tid, 0), image));
 	io_mutex.unlock();
 }
 
-void socket_connect::send_buff_push(socketid tid, sample src)
+void socket_connect::send_buff_push(sample src, int tid)
 {
 	io_mutex.lock();
-	send_q_sample.push(std::pair<socketid, sample>(tid, src));
+	send_q_sample.push(std::pair<data_head, sample>(data_head(tid, 0), src));
 	io_mutex.unlock();
 }
 
-bool socket_connect::recv_buff_pop(socketid &tid, Mat & output)
+bool socket_connect::recv_buff_pop(Mat & output, int &tid)
 {
 	io_mutex.lock();
 	if (!recv_q_mat.empty())
 	{
 		auto &step = recv_q_mat.front();
-		tid = step.first;
+		tid = step.first.second;
 		output = step.second.clone();
 		recv_q_mat.pop();
 		io_mutex.unlock();
@@ -165,13 +175,13 @@ bool socket_connect::recv_buff_pop(socketid &tid, Mat & output)
 	return false;
 }
 
-bool socket_connect::recv_buff_pop(socketid &tid,  sample & output)
+bool socket_connect::recv_buff_pop(sample & output, int &tid)
 {
 	io_mutex.lock();
 	if (!recv_q_sample.empty())
 	{
 		auto &step = recv_q_sample.front();
-		tid = step.first;
+		tid = step.first.second;
 		output = step.second;
 		recv_q_sample.pop();
 		io_mutex.unlock();
@@ -192,46 +202,49 @@ void socket_connect::s_send()
 
 		if (!send_q_mat.empty())
 		{
-			s_send(send_q_mat.front().second);
+			s_send(send_q_mat.front().second,send_q_mat.front().first.first);//发送数据部分以及head的第一位。
 			send_q_mat.pop();
 		}
 		if (!send_q_sample.empty())
 		{
-			s_send(send_q_sample.front().second);
+			s_send(send_q_sample.front().second, send_q_mat.front().first.first);
 			send_q_sample.pop();
 		}
 	}
 	io_mutex.unlock();
 }
 
-void socket_connect::s_send(int datatype, const char *data, int size)
+void socket_connect::s_send(int datatype, const char *data, int size,int send_tag)
 {
 	char send_char[100000] = { 0 };
 	std::string type = std::to_string(datatype);
 	std::string len = std::to_string(size);
+	std::string tag = std::to_string(send_tag);
 	
 	std::cout << data_encode.size() << std::endl;
 	std::cout << len << std::endl;
-	std::cout << len.length() << std::endl;
+	std::cout << "tag:"<<len.length() << std::endl;
 
 	for (int i = 0;i < type.length();++i)
 		send_char[i] = type[i];
 	for (int i = 16; i < 16 + len.length(); ++i)
-		send_char[i] = len[i-16];
-	for (int i = 32;i < size + 32;++i)
-		send_char[i] = data[i - 32];
+		send_char[i] = len[i - 16];
+	for (int i = 32; i < 32 + tag.length(); ++i)
+		send_char[i] = tag[i - 32];
+	for (int i = 48;i < size + 48;++i)
+		send_char[i] = data[i - 48];
 
-	send(mysocket, send_char, 32 + size, 0);
+	send(mysocket, send_char, 48 + size, 0);
 }
 
-void socket_connect::s_send(Mat image)
+void socket_connect::s_send(Mat image, socket_id tid)
 {
 	data_encode.clear();
 	imencode(".jpg", image, data_encode);
 	char data[100000]={0};
 	for (int i = 0; i < data_encode.size(); i++)
 		data[i] = data_encode[i];
-	s_send(1, data, data_encode.size());
+	s_send(1, data, data_encode.size(), tid);
 }
 
 void socket_connect::s_recv()
@@ -249,13 +262,17 @@ void socket_connect::s_recv()
 		if (recv(mysocket, mode, 16, 0))	//Linux下flag设置为MSG_DONTWAIT，将recv工作在非阻塞模式下
 		{
 			char length[16];
+			char tag[16];
 			char data[100000];
 			memset(length, 0, sizeof(length));
+			memset(tag, 0, sizeof(tag));
 			memset(data, 0, sizeof(data));
 
 			recv(mysocket, length, 16, 0);
+			recv(mysocket, tag, 16, 0);
 			int intmode = atoi(mode);
 			int intlength = atoi(length);
+			int inttag = atoi(tag);
 
 			for (int i = 0;i < intlength;++i)
 			{
@@ -270,9 +287,9 @@ void socket_connect::s_recv()
 				if (intmode == -1)
 					*d_flag = true;
 				else if (intmode == 1)
-					recv_q_mat.push(std::pair<socketid, Mat>(threadid, s_recvmat(data, intlength)));
+					recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), s_recvmat(data, intlength)));
 				else if (intmode == 2)
-					recv_q_sample.push(std::pair<socketid, sample>(threadid, s_recvsample(data, intlength)));
+					recv_q_sample.push(std::pair<data_head, sample>(data_head(0, inttag), s_recvsample(data, intlength)));
 			}
 			io_mutex.unlock();
 		}
@@ -404,7 +421,7 @@ void client_heart(void *soc)
 		Sleep(5000);
 		io_mutex.lock();
 		//std::cout << "发了心跳" << std::endl;
-		socket_ptr->s_send(-2, nullptr, 0);
+		socket_ptr->s_send(-2, nullptr, 0,0);
 		io_mutex.unlock();
 	}
 }
