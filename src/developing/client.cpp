@@ -11,16 +11,22 @@ int main()
 	s_client.s_connect("127.0.0.2", 8010);
 
 	int loop = 0;
-	while (loop++!=100)
+	sample test ;
+	test.a = 1;
+	test.c = 1.5;
+	test.b = "zxb send";
+	s_client.send_buff_push(test, 1);
+	s_client.send_buff_push(login_mes("client", "123"),1);
+	while (loop++!=15)
 	{
-		cap >> frame;
+		//cap >> frame;
 		//imshow("frame", frame);
-		resize(frame, frame, Size(160, 140));
-		s_client.send_buff_push(frame.clone(),1);
+		//resize(frame, frame, Size(160, 140));
+		//s_client.send_buff_push(frame.clone(),1);
 		//cvWaitKey(100);
 	}
-	s_client.disconnect();
 	getchar();
+	s_client.disconnect();
 	socketclose();
 	return 0;
 }

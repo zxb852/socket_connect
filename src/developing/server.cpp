@@ -10,6 +10,7 @@ int main()
 	s_server.server_init("127.0.0.2", 8010);
 	int tid;
 	Mat src;
+	sample test_sample;
 	while (1)
 	{
 		if (s_server.recv_buff_pop(src, tid))
@@ -17,6 +18,12 @@ int main()
 			std::cout << "from " << tid << std::endl;
 			imshow("src", src);
 			cvWaitKey(1);
+		}
+		if (s_server.recv_buff_pop(test_sample, tid))
+		{
+			cout << test_sample.a << endl;
+			cout << test_sample.c << endl;
+			cout << test_sample.b << endl;
 		}
 	}
 	getchar();
