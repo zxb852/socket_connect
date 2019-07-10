@@ -11,11 +11,11 @@ int main()
 	s_client.s_connect("127.0.0.2", 8010);
 
 	int loop = 0;
-	sample test ;
-	test.a = 1;
-	test.c = 1.5;
-	test.b = "zxb send";
+	sample test(1,"asdf",1.5) ;
+	std::cout << "size" << sizeof(test) << std::endl;
+	
 	s_client.send_buff_push(test, 1);
+
 	s_client.send_buff_push(login_mes("client", "123"),1);
 	while (loop++!=15)
 	{

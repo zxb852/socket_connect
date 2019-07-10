@@ -53,7 +53,9 @@ void socket_connect::updaterecvbuff()
 		if (!childsocket->recv_q_mat.empty())
 		{
 			auto &step = childsocket->recv_q_mat.front();
-			step.first.first = i.first;
+			//step.first.first = i.first;
+			//发送的标志位：1：RGB 2：红丸 3：紫外 4:融合 11：录像 12：截图
+			step.first.first = step.first.second;
 			recv_q_mat.push(step);
 			childsocket->recv_q_mat.pop();
 		}
@@ -70,6 +72,7 @@ void socket_connect::updaterecvbuff()
 			auto &step = childsocket->recv_q_login_mes.front();
 			std::cout << "child identity changed from:" << childrenctrl[i.first];
 			childrenctrl[i.first] = login(step.second.username, step.second.password);
+			step.second.username[0] = 'a';
 			std::cout << "	to:" << childrenctrl[i.first]<<std::endl;
 			childsocket->recv_q_login_mes.pop();
 		}

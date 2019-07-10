@@ -30,19 +30,35 @@ void socketclose();
 
 struct sample
 {
-	int a;
-	std::string b;
-	double c;
+	int a=0;
+	char b[21] = {0};
+	double c=0;
 	
+	sample() = default;
+
+	sample(int ia, std::string ib, double ic) :a(ia), c(ic)
+	{
+		int strlen = ib.length();
+		for (int i = 0;i<std::min(strlen,20);i++)
+			b[i] = ib[i];
+	}
 };
 
 struct login_mes
 {
-	std::string username;
-	std::string password;
+	char username[21] = { 0 };
+	char password[21] = { 0 };
 	login_mes() = default;
-	login_mes(std::string username, std::string password) :username(username), password(password)
-	{}
+	login_mes(std::string iusername, std::string ipassword)
+	{
+		int strlen = iusername.length();
+		for (int i = 0;i<std::min(strlen, 20);i++)
+			username[i] = iusername[i];
+		strlen = ipassword.length();
+		for (int i = 0;i<std::min(strlen, 20);i++)
+			password[i] = ipassword[i];
+
+	}
 };
 
 struct device_change
