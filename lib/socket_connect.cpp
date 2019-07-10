@@ -4,13 +4,10 @@ std::vector<uchar> data_encode;
 
 void socketinit()
 {
-	WSADATA wsd;
-	WSAStartup(MAKEWORD(2, 0), &wsd);
 }
 
 void socketclose()
 {
-	WSACleanup();
 }
 
 void socket_connect::updatesendbuff()
@@ -54,7 +51,7 @@ void socket_connect::updaterecvbuff()
 		{
 			auto &step = childsocket->recv_q_mat.front();
 			//step.first.first = i.first;
-			//·¢ËÍµÄ±êÖ¾Î»£º1£ºRGB 2£ººìÍè 3£º×ÏÍâ 4:ÈÚºÏ 11£ºÂ¼Ïñ 12£º½ØÍ¼
+			//å‘é€çš„æ ‡å¿—ä½ï¼š1ï¼šRGB 2ï¼šçº¢ä¸¸ 3ï¼šç´«å¤– 4:èžåˆ 11ï¼šå½•åƒ 12ï¼šæˆªå›¾
 			step.first.first = step.first.second;
 			recv_q_mat.push(step);
 			childsocket->recv_q_mat.pop();
@@ -82,35 +79,35 @@ void socket_connect::updaterecvbuff()
 
 bool socket_connect::s_bind(const char *ip, int port)
 {
-	SOCKADDR_IN addrServer;
+    sockaddr_in addrServer;
 	addrServer.sin_family = AF_INET;
-	addrServer.sin_addr.S_un.S_addr = inet_addr(ip);
+    addrServer.sin_addr.s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
-	bool result = bind(mysocket, (SOCKADDR*)&addrServer, sizeof(SOCKADDR)) == 0;
-	if (listen(mysocket, LISTEN_LENGTH) == SOCKET_ERROR)
-		std::cout << "listen error!" << std::endl;
+    bool result = bind(mysocket, (sockaddr*)&addrServer, sizeof(addrServer)) == 0;
+    listen(mysocket, LISTEN_LENGTH);
 	return result;
 }
 
 void socket_connect::s_listen()
 {
-	//Ñ­»·½ÓÊÕ¿Í»§¶ËÁ¬½ÓÇëÇó²¢´´½¨·þÎñÏß³Ì
-	SOCKET conn;
-	SOCKADDR_IN addr;
-	int len = sizeof(SOCKADDR);
-	conn = accept(mysocket, (SOCKADDR*)&addr, &len);
+	//å¾ªçŽ¯æŽ¥æ”¶å®¢æˆ·ç«¯è¿žæŽ¥è¯·æ±‚å¹¶åˆ›å»ºæœåŠ¡çº¿ç¨‹
+    int conn;
+    int res;
+    sockaddr_in addr;
+    socklen_t len = sizeof(sockaddr);
+    conn = accept(mysocket, (sockaddr*)&addr, &len);
 	char recvBuf[10000];
 	
-	std::cout << "Ò»¸ö¿Í»§¶ËÒÑÁ¬½Óµ½·þÎñÆ÷£¬socketÊÇ£º" << conn << std::endl;
+	std::cout << "ä¸€ä¸ªå®¢æˆ·ç«¯å·²è¿žæŽ¥åˆ°æœåŠ¡å™¨ï¼Œsocketæ˜¯ï¼š" << conn << std::endl;
 	socket_connect *socketctl=new socket_connect(conn);	
 
-	std::thread t1(listencallback_send, socketctl);
-	std::cout << "send thread id :" << t1.get_id() << std::endl;
-	t1.detach();
+    pthread_t t1;
+    res = pthread_create(&t1, NULL, listencallback_send, (void*)socketctl);
+    std::cout << "send thread id :" << t1 << std::endl;
 
-	std::thread t2(listencallback_recv, socketctl);
-	std::cout << "recv thread id :" << t2.get_id() << std::endl;
-	t2.detach();
+    pthread_t t2;
+    res = pthread_create(&t2, NULL, listencallback_recv, (void*)socketctl);
+    std::cout << "recv thread id :" << t2 << std::endl;
 
 	children[children_id] = socketctl;
 	childrenctrl[children_id] = 0;
@@ -119,41 +116,43 @@ void socket_connect::s_listen()
 
 void socket_connect::server_init(const char * ip, int port)
 {
+    int res;
 	if (s_bind(ip, port))
 	{
 		std::cout << "bind" << ip << ":" << port << "    successfully" << std::endl;
 
-		std::thread tlisten(server_listen, this);
-		std::cout << "creat listen thread " << tlisten.get_id()<<"    successfully" << std::endl;
-		tlisten.detach();
+        pthread_t tlisten;
+        res = pthread_create(&tlisten, NULL, server_listen, (void*)this);
+        std::cout << "creat listen thread " << tlisten<<"    successfully" << std::endl;
 
-		std::thread tdata(server_dataexchange, this);
-		std::cout << "creat data thread "<< tdata.get_id()<<"         successfully" << std::endl;
-		tdata.detach();
+        pthread_t tdata;
+        res = pthread_create(&tdata, NULL, server_dataexchange, (void*)this);
+        std::cout << "creat data thread "<< tdata<<"         successfully" << std::endl;
 
-		std::thread theart(server_heart, this);
-		std::cout << "creat heart thread " << theart.get_id() << "    successfully" << std::endl;
-		theart.detach();
+        pthread_t theart;
+        res = pthread_create(&theart, NULL, server_heart, (void*)this);
+        std::cout << "creat heart thread " << theart << "    successfully" << std::endl;
 	}
 }
 
 bool socket_connect::s_connect(const char *ip, int port)
 {
-	SOCKADDR_IN addrServer;
+    int res;
+    sockaddr_in addrServer;
 	addrServer.sin_family = AF_INET;
-	addrServer.sin_addr.S_un.S_addr = inet_addr(ip);
+    addrServer.sin_addr.s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
 	ismain = false;
-	if (connect(mysocket, (SOCKADDR*)&addrServer, sizeof(SOCKADDR)) == -1)
+    if (connect(mysocket, (sockaddr*)&addrServer, sizeof(sockaddr)) == -1)
 		return false;
 
-	std::thread t(listencallback_send, this);
-	t.detach();
-	std::thread t2(listencallback_recv, this);
-	t2.detach();
-	std::thread t3(client_heart, this);
-	t3.detach();
-	std::cout << "client data contrl thread id set up : " << t.get_id() << std::endl;
+    pthread_t t;
+    res = pthread_create(&t, NULL, listencallback_send, (void*)this);
+    pthread_t t2;
+    res = pthread_create(&t2, NULL, listencallback_recv, (void*)this);
+    pthread_t t3;
+    res = pthread_create(&t3, NULL, client_heart, (void*)this);
+    std::cout << "client data contrl thread id set up : " << t << std::endl;
 	
 	return true;
 }
@@ -218,11 +217,11 @@ void socket_connect::s_send()
 		updatesendbuff();
 	else
 	{
-		//s_send(0, nullptr, 0);				//·¢ËÍÐÄÌø¡®
+		//s_send(0, nullptr, 0);				//å‘é€å¿ƒè·³â€˜
 
 		if (!send_q_mat.empty())
 		{
-			s_sendmat(send_q_mat.front().second,send_q_mat.front().first.first);//·¢ËÍÊý¾Ý²¿·ÖÒÔ¼°headµÄµÚÒ»Î»¡£
+			s_sendmat(send_q_mat.front().second,send_q_mat.front().first.first);//å‘é€æ•°æ®éƒ¨åˆ†ä»¥åŠheadçš„ç¬¬ä¸€ä½ã€‚
 			send_q_mat.pop();
 		}
 		if (!send_q_sample.empty())
@@ -251,7 +250,7 @@ void socket_connect::s_recv()
 	{
 		char mode[16];
 		memset(mode, 0, sizeof(mode));
-		if (recv(mysocket, mode, 16, 0))	//LinuxÏÂflagÉèÖÃÎªMSG_DONTWAIT£¬½«recv¹¤×÷ÔÚ·Ç×èÈûÄ£Ê½ÏÂ
+		if (recv(mysocket, mode, 16, 0))	//Linuxä¸‹flagè®¾ç½®ä¸ºMSG_DONTWAITï¼Œå°†recvå·¥ä½œåœ¨éžé˜»å¡žæ¨¡å¼ä¸‹
 		{
 			char length[16];
 			char tag[16];
@@ -331,14 +330,14 @@ Mat socket_connect::s_recvmat(char * data, int length)
 	std::vector<uchar> vdata;
 	for (int i = 0;i < length;++i)
 		vdata.push_back(data[i]);
-	result = cv::imdecode(vdata, CV_LOAD_IMAGE_COLOR);
+    result = cv::imdecode(vdata, IMREAD_COLOR);
 	resize(result, result, cv::Size(640, 480));
 	return result;
 }
 
-void server_dataexchange(void * soc)
+void* server_dataexchange(void * soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
@@ -350,9 +349,9 @@ void server_dataexchange(void * soc)
 	}
 }
 
-void server_listen(void * soc)
+void* server_listen(void * soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	//std::cout << std::this_thread::get_id();
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
@@ -364,9 +363,9 @@ void server_listen(void * soc)
 	}
 }
 
-void server_heart(void * soc)
+void* server_heart(void * soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
@@ -374,9 +373,9 @@ void server_heart(void * soc)
 		if (*d_flag == true)
 			break;
 
-		for (int i = 0;i < 100;i++)
+        for (int i = 0;i < 10;i++)
 		{
-			Sleep(100);
+            sleep(1);
 			io_mutex.lock();
 			for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();)
 			{
@@ -421,9 +420,9 @@ void server_heart(void * soc)
 	}
 }
 
-void listencallback_send(void *soc)
+void* listencallback_send(void *soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 
@@ -433,14 +432,13 @@ void listencallback_send(void *soc)
 		if (*d_flag == true)
 			break;
 		socket_ptr->s_send();
-		
-
 	}
+
 }
 
-void listencallback_recv(void *soc)
+void* listencallback_recv(void *soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
@@ -453,9 +451,9 @@ void listencallback_recv(void *soc)
 	}
 }
 
-void client_heart(void *soc)
+void* client_heart(void *soc)
 {
-	//¿ªÊ¼Ïß³Ì£¬»ñµÃ±¾Ïß³ÌsocketÖ¸Õë¡£
+	//å¼€å§‹çº¿ç¨‹ï¼ŒèŽ·å¾—æœ¬çº¿ç¨‹socketæŒ‡é’ˆã€‚
 	socket_connect *socket_ptr = (socket_connect*)soc;
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
@@ -463,9 +461,9 @@ void client_heart(void *soc)
 		//std::cout << "only for test" << std::endl;
 		if (*d_flag == true)
 			break;
-		Sleep(5000);
+        sleep(5);
 		io_mutex.lock();
-		//std::cout << "·¢ÁËÐÄÌø" << std::endl;
+		//std::cout << "å‘äº†å¿ƒè·³" << std::endl;
 		socket_ptr->s_send_base(-2, nullptr, 0,0);
 		io_mutex.unlock();
 	}

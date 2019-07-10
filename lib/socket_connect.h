@@ -2,28 +2,30 @@
 #define _WINSOCK_DEPRECATED_NO_WARNINGS 0
 #define LISTEN_LENGTH 20
 #include <stdio.h>
-#include <Winsock2.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <opencv2/opencv.hpp>
+#include <unistd.h>
 #include <vector> 
 #include <fstream>
-#include <thread>
+#include <pthread.h>
 #include <mutex>
 #include <map>
 #include <queue>
 #include <utility>
-#include<memory>
-#pragma comment(lib,"ws2_32.lib")
+#include <memory>
 
 //using namespace std;
 using namespace cv;
 //using cv::Mat;
 
-void server_dataexchange(void *soc);
-void server_listen(void *soc);
-void server_heart(void * soc);
-void listencallback_send(void *soc);
-void listencallback_recv(void *soc);
-void client_heart(void *soc);
+void* server_dataexchange(void *soc);
+void* server_listen(void *soc);
+void* server_heart(void * soc);
+void* listencallback_send(void *soc);
+void* listencallback_recv(void *soc);
+void* client_heart(void *soc);
 
 void socketinit();
 void socketclose();
@@ -75,42 +77,42 @@ class socket_connect
 {
 public:
 	typedef int socket_id;
-	// ÔÚÖĞ×ª·şÎñÆ÷ÖĞÁ½¸öint£ºfrom first to two¡£ 1£º·şÎñÆ÷ 2£ºËùÓĞ¿Í»§¶Ë¹ã²¥ >10Ä³¸ö¾ßÌåµÄÁ¬½Ó¶ÔÏó
+	// åœ¨ä¸­è½¬æœåŠ¡å™¨ä¸­ä¸¤ä¸ªintï¼šfrom first to twoã€‚ 1ï¼šæœåŠ¡å™¨ 2ï¼šæ‰€æœ‰å®¢æˆ·ç«¯å¹¿æ’­ >10æŸä¸ªå…·ä½“çš„è¿æ¥å¯¹è±¡
 	typedef std::pair<int,int> data_head;
 
-	SOCKET mysocket;
+    int mysocket;
 	socket_id children_id = 10;
 	//socketid threadid;
 
-	socket_connect()			//ÊÖ¶¯´´½¨socketÖ÷¶ÔÏó  or ´´½¨¿Í»§¶Ë£¨Ïàµ±ÓÚ×Ó¶ÔÏó£©
+	socket_connect()			//æ‰‹åŠ¨åˆ›å»ºsocketä¸»å¯¹è±¡  or åˆ›å»ºå®¢æˆ·ç«¯ï¼ˆç›¸å½“äºå­å¯¹è±¡ï¼‰
 	{
 		mysocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		ismain = true;
 		heart_flag = true;
 		d_flag = std::make_shared<bool>(false);
 	}
-	~socket_connect()			//Îö¹¹º¯Êı£¬¹Ø±Õ±¾socket
+	~socket_connect()			//ææ„å‡½æ•°ï¼Œå…³é—­æœ¬socket
 	{
 		*d_flag = true;
 		shutdown(mysocket, 2);
-		closesocket(mysocket);
+        close(mysocket);
 		for (auto i : children)
 			delete i.second;
 	}
 	void server_init(const char *ip, int port);
 	bool s_connect(const char *ip, int port);
 
-	//######Íâ²¿½Ó¿Ú#########
-	//·¢ËÍÊı¾İ£¬½«Êı¾İÑ¹Èë·¢ËÍ¶ÓÁĞ
-	//µ±tid==emptyidÊ±£¬ÓÉ¿Í»§¶ËÏò·şÎñÆ÷·¢ËÍ£»µ±tid==threadid»òÕßtid==¾ßÌåidÊ±£¬ÓÉ·şÎñÆ÷Ïò¿Í»§¶Ë·¢ËÍ¡£
+	//######å¤–éƒ¨æ¥å£#########
+	//å‘é€æ•°æ®ï¼Œå°†æ•°æ®å‹å…¥å‘é€é˜Ÿåˆ—
+	//å½“tid==emptyidæ—¶ï¼Œç”±å®¢æˆ·ç«¯å‘æœåŠ¡å™¨å‘é€ï¼›å½“tid==threadidæˆ–è€…tid==å…·ä½“idæ—¶ï¼Œç”±æœåŠ¡å™¨å‘å®¢æˆ·ç«¯å‘é€ã€‚
 	void send_buff_push(Mat image, int tid);
 	void send_buff_push(sample src, int tid);
 	void send_buff_push(login_mes src, int tid);
-	//½ÓÊÕÊı¾İ£¬½«Êı¾İµ¯³ö½ÓÊÕ¶ÓÁĞ
+	//æ¥æ”¶æ•°æ®ï¼Œå°†æ•°æ®å¼¹å‡ºæ¥æ”¶é˜Ÿåˆ—
 	bool recv_buff_pop(Mat &output, int &tid);
 	bool recv_buff_pop(sample &output, int &tid);
 	//########################
-	//µ±¶ÔÏóÎª×Ó¶ÔÏóÊ±£¬¶Ï¿ªÓë·şÎñÆ÷µÄÁ¬½Ó
+	//å½“å¯¹è±¡ä¸ºå­å¯¹è±¡æ—¶ï¼Œæ–­å¼€ä¸æœåŠ¡å™¨çš„è¿æ¥
 	void disconnect()
 	{
 		s_send_base(-1, nullptr, 0,0);
@@ -127,23 +129,23 @@ public:
 
 
 private:
-	bool ismain;									// false:×Ó¶ÔÏó£¨or¿Í»§¶Ë£©  true:Ö÷¶ÔÏó
-	bool heart_flag;								//ĞÄÌø±êÖ¾Î»£¬µ±==falseÊ±£¬´ú±í¶ÔÏóÒÑ¶Ï¿ª¡£
+	bool ismain;									// false:å­å¯¹è±¡ï¼ˆorå®¢æˆ·ç«¯ï¼‰  true:ä¸»å¯¹è±¡
+	bool heart_flag;								//å¿ƒè·³æ ‡å¿—ä½ï¼Œå½“==falseæ—¶ï¼Œä»£è¡¨å¯¹è±¡å·²æ–­å¼€ã€‚
 	std::shared_ptr<bool> d_flag;
-	std::map<socket_id, socket_connect*> children;	// ¼ÇÂ¼socketidÓë×Ó¶ÔÏóµÄ¶ÔÓ¦¹ØÏµ
-	std::map<socket_id, int> childrenctrl;			// ¼ÇÂ¼socketid¶ÔÓ¦×Ó¶ÔÏóµÄÓÃ»§ÀàĞÍ£¬0: ³õÊ¼»¯  1: ·şÎñÆ÷ 2: ¹ÜÀíÔ±  3: ÆÕÍ¨ÓÃ»§
+	std::map<socket_id, socket_connect*> children;	// è®°å½•socketidä¸å­å¯¹è±¡çš„å¯¹åº”å…³ç³»
+	std::map<socket_id, int> childrenctrl;			// è®°å½•socketidå¯¹åº”å­å¯¹è±¡çš„ç”¨æˆ·ç±»å‹ï¼Œ0: åˆå§‹åŒ–  1: æœåŠ¡å™¨ 2: ç®¡ç†å‘˜  3: æ™®é€šç”¨æˆ·
 
-	//·¢ËÍ»º³åÇø(Ö÷¶ÔÏó or ×Ó¶ÔÏó),	socketid==threadidÊ± ÏòËùÓĞ¿Í»§¶Ë·¢ËÍÊı¾İ£¬ ·ñÔòÏòsocketid±êÊ¶µÄ¿Í»§¶Ë»òÖ÷¿Ø·şÎñÆ÷·¢ËÍÊı¾İ
+	//å‘é€ç¼“å†²åŒº(ä¸»å¯¹è±¡ or å­å¯¹è±¡),	socketid==threadidæ—¶ å‘æ‰€æœ‰å®¢æˆ·ç«¯å‘é€æ•°æ®ï¼Œ å¦åˆ™å‘socketidæ ‡è¯†çš„å®¢æˆ·ç«¯æˆ–ä¸»æ§æœåŠ¡å™¨å‘é€æ•°æ®
 	std::queue<std::pair<data_head, Mat>> send_q_mat;
 	std::queue<std::pair<data_head, sample>> send_q_sample;
 	std::queue<std::pair<data_head, login_mes>> send_q_login_mes;
 
-	//½ÓÊÕ»º³åÇø(Ö÷¶ÔÏó or ×Ó¶ÔÏó)£¬socketid±êÊ¶×Å´ÓÄÄ¸ö×ÓÏß³Ì»ñµÃµÄÊı¾İ
+	//æ¥æ”¶ç¼“å†²åŒº(ä¸»å¯¹è±¡ or å­å¯¹è±¡)ï¼Œsocketidæ ‡è¯†ç€ä»å“ªä¸ªå­çº¿ç¨‹è·å¾—çš„æ•°æ®
 	std::queue <std::pair<data_head, Mat>> recv_q_mat;
 	std::queue<std::pair<data_head, sample>> recv_q_sample;
 	std::queue<std::pair<data_head, login_mes>> recv_q_login_mes;
 
-	socket_connect(SOCKET s)	//×Ô¶¯´´½¨socket×Ó¶ÔÏó
+    socket_connect(int s)	//è‡ªåŠ¨åˆ›å»ºsocketå­å¯¹è±¡
 	{
 		mysocket = s;
 		ismain = false;
@@ -151,11 +153,11 @@ private:
 		d_flag = std::make_shared<bool>(false);
 	}
 
-	//Ö÷¶ÔÏó¿ØÖÆ·½·¨£¬ÊµÏÖ¿Í»§¶ËÓë·şÎñ¶ËÁ¬½Ó£¬ÒÔ¼°´´½¨×Ó¶ÔÏó£¨Ö÷¶ÔÏó£©
+	//ä¸»å¯¹è±¡æ§åˆ¶æ–¹æ³•ï¼Œå®ç°å®¢æˆ·ç«¯ä¸æœåŠ¡ç«¯è¿æ¥ï¼Œä»¥åŠåˆ›å»ºå­å¯¹è±¡ï¼ˆä¸»å¯¹è±¡ï¼‰
 	bool s_bind(const char *ip, int port);
-	//³¢ÊÔ»ñÈ¡Á¬½Ó£¨accept£©	ÓÃÓÚ¼àÌıÁ¬½ÓÇëÇóÏß³Ì
+	//å°è¯•è·å–è¿æ¥ï¼ˆacceptï¼‰	ç”¨äºç›‘å¬è¿æ¥è¯·æ±‚çº¿ç¨‹
 	void s_listen();
-	//¹Ø±ÕchildµÄSocketÁ¬½Ó
+	//å…³é—­childçš„Socketè¿æ¥
 	void deletechild(socket_id child)
 	{
 		for (auto i = children.begin();i != children.end();i++)
@@ -177,20 +179,20 @@ private:
 		}
 	}
 
-	//»º³åÇø¹ÜÀí·½·¨(Ö÷¶ÔÏó)	ÓÃÓÚÊı¾İ½»»»Ïß³Ì
+	//ç¼“å†²åŒºç®¡ç†æ–¹æ³•(ä¸»å¯¹è±¡)	ç”¨äºæ•°æ®äº¤æ¢çº¿ç¨‹
 	void updatesendbuff();
 	void updaterecvbuff();
 
-	//³¢ÊÔ·¢ËÍºÍ½ÓÊÕÊı¾İ		ÓÃÓÚ×Ó¶ÔÏóÏß³Ì
+	//å°è¯•å‘é€å’Œæ¥æ”¶æ•°æ®		ç”¨äºå­å¯¹è±¡çº¿ç¨‹
 	void s_send();
 	void s_recv();
 
-	//¾ßÌåÍ¨ĞÅ·½·¨£¬ÊµÏÖ×Ó¶ÔÏóÓë¿Í»§¶ËÍ¨ĞÅ
+	//å…·ä½“é€šä¿¡æ–¹æ³•ï¼Œå®ç°å­å¯¹è±¡ä¸å®¢æˆ·ç«¯é€šä¿¡
 	void s_send_base(int datatype, const char *data, int size,int send_tag);
 	void s_sendmat(Mat image, socket_id tid);
 	template<class T> void s_senddata(T src, socket_id tid)
 	{
-		//mode=-2:ĞÄÌø°ü mode=-1:¶Ï¿ªÁ¬½Ó  mode=1:Mat mode=2:sample mode=3:login_mes
+		//mode=-2:å¿ƒè·³åŒ… mode=-1:æ–­å¼€è¿æ¥  mode=1:Mat mode=2:sample mode=3:login_mes
 		int mode = 0;
 		//std::cout << typeid(T).name() << std::endl;
 		//std::cout << typeid(sample).name() << std::endl;
@@ -201,9 +203,9 @@ private:
 		
 		char data[10000];
 
-		memset(data, 0, sizeof(data));				// ¶Ô¸ÃÄÚ´æ¶Î½øĞĞÇå
-		memcpy(data, &src, sizeof(src));			// °ÑÕâ¸ö½á¹¹ÌåÖĞµÄĞÅÏ¢´ÓÄÚ´æÖĞ¶ÁÈëµ½×Ö·û´®dataÖĞ
-													//½ÓÏÂÀ´´«ËÍtempÕâ¸ö×Ö·û´®¾Í¿ÉÒÔÁË
+		memset(data, 0, sizeof(data));				// å¯¹è¯¥å†…å­˜æ®µè¿›è¡Œæ¸…
+		memcpy(data, &src, sizeof(src));			// æŠŠè¿™ä¸ªç»“æ„ä½“ä¸­çš„ä¿¡æ¯ä»å†…å­˜ä¸­è¯»å…¥åˆ°å­—ç¬¦ä¸²dataä¸­
+													//æ¥ä¸‹æ¥ä¼ é€tempè¿™ä¸ªå­—ç¬¦ä¸²å°±å¯ä»¥äº†
 		s_send_base(mode, data, sizeof(src), tid);
 	}
 
@@ -218,26 +220,26 @@ private:
 		return result;
 	}
 
-	friend void server_dataexchange(void *soc);
-	friend void server_listen(void *soc);
-	friend void server_heart(void * soc);
-	friend void listencallback_send(void *soc);
-	friend void listencallback_recv(void *soc);
-	friend void client_heart(void *soc);
+    friend void* server_dataexchange(void *soc);
+    friend void* server_listen(void *soc);
+    friend void* server_heart(void * soc);
+    friend void* listencallback_send(void *soc);
+    friend void* listencallback_recv(void *soc);
+    friend void* client_heart(void *soc);
 };
 
 
 
 /*
-	¸÷Êı¾İÀàĞÍÒÔ¼°¶ÔÓ¦±êÊ¶
-		±êÊ¶	Êı¾İÀàĞÍ
+	å„æ•°æ®ç±»å‹ä»¥åŠå¯¹åº”æ ‡è¯†
+		æ ‡è¯†	æ•°æ®ç±»å‹
 		1		Mat
 		2		sample
 
 */
 
 /*
-	¶ÂÈû£º
+	å µå¡ï¼š
 		recv
 		accept
 		lock

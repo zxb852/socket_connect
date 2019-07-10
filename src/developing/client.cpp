@@ -17,13 +17,13 @@ int main()
 	s_client.send_buff_push(test, 1);
 
 	s_client.send_buff_push(login_mes("client", "123"),1);
-	while (loop++!=15)
+	while (loop++!=100)
 	{
-		//cap >> frame;
-		//imshow("frame", frame);
-		//resize(frame, frame, Size(160, 140));
-		//s_client.send_buff_push(frame.clone(),1);
-		//cvWaitKey(100);
+		cap >> frame;
+		imshow("frame", frame);
+		resize(frame, frame, Size(160, 140));
+		s_client.send_buff_push(frame.clone(),1);
+		cv::waitKey(100);
 	}
 	getchar();
 	s_client.disconnect();

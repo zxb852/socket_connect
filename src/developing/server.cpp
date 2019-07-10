@@ -17,7 +17,7 @@ int main()
 		{
 			std::cout << "from " << tid << std::endl;
 			imshow("src", src);
-			cvWaitKey(1);
+			cv::waitKey(1);
 		}
 		if (s_server.recv_buff_pop(test_sample, tid))
 		{

@@ -5,7 +5,7 @@ class server : public socket_connect
 {
 public:
 	server()
-	{
+    {
 		socketinit();
 	}
 	~server()
