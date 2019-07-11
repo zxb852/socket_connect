@@ -107,7 +107,7 @@ public:
 	//当tid==emptyid时，由客户端向服务器发送；当tid==threadid或者tid==具体id时，由服务器向客户端发送。
 	void send_buff_push(Mat image, int tid);
 	void send_buff_push(sample src, int tid);
-	void send_buff_push(login_mes src, int tid);
+    void send_buff_push(login_mes src, int tid = 1);
 	//接收数据，将数据弹出接收队列
 	bool recv_buff_pop(Mat &output, int &tid);
 	bool recv_buff_pop(sample &output, int &tid);
@@ -128,12 +128,12 @@ public:
 	}
 
 
-private:
+protected:
 	bool ismain;									// false:子对象（or客户端）  true:主对象
 	bool heart_flag;								//心跳标志位，当==false时，代表对象已断开。
 	std::shared_ptr<bool> d_flag;
 	std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
-	std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
+    std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
 
 	//发送缓冲区(主对象 or 子对象),	socketid==threadid时 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
 	std::queue<std::pair<data_head, Mat>> send_q_mat;

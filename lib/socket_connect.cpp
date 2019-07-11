@@ -20,16 +20,21 @@ void socket_connect::updatesendbuff()
 			socket_connect* childsocket = i.second;
 			if (!send_q_mat.empty())
 			{
-				if (childrenctrl[i.first] == 1 && send_q_mat.front().first.second== 1)
+                //0: 初始化  1: 服务器 2: 管理员  3: 普通用户
+                if (childrenctrl[i.first] == 1)
+                    std::cout << "admin" << std::endl;
+                    //childsocket->send_q_mat.push(send_q_mat.front());
+                else
+                {
+                    std::cout << "client" << std::endl;
 					childsocket->send_q_mat.push(send_q_mat.front());
-				else if (send_q_mat.front().first.second == 2 || send_q_mat.front().first.second == i.first)
-					childsocket->send_q_mat.push(send_q_mat.front());
+                }
 			}
 			if (!send_q_sample.empty())
 			{
-				if (childrenctrl[i.first] == 1 && send_q_sample.front().first.second == 1)
+                if (childrenctrl[i.first] == 1 && send_q_sample.front().first.second == 1)
 					childsocket->send_q_sample.push(send_q_sample.front());
-				if (send_q_sample.front().first.second == 2 || send_q_sample.front().first.second == i.first)
+                else if (send_q_sample.front().first.second == 2 || send_q_sample.front().first.second == i.first)
 					childsocket->send_q_sample.push(send_q_sample.front());
 			}
 		}
@@ -297,9 +302,10 @@ void socket_connect::s_send_base(int datatype, const char *data, int size,int se
 	std::string len = std::to_string(size);
 	std::string tag = std::to_string(send_tag);
 	
-	std::cout << data_encode.size() << std::endl;
-	std::cout << len << std::endl;
-	std::cout << "tag:"<<len.length() << std::endl;
+    //std::cout << data_encode.size() << std::endl;
+    std::cout << "sending message......" << std::endl;
+    std::cout << "len:" << len << std::endl;
+    std::cout << "tag:" << send_tag << std::endl;
 
 	for (int i = 0;i < type.length();++i)
 		send_char[i] = type[i];

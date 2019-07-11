@@ -12,6 +12,8 @@ public:
 	{
 		socketclose();
 	}
+
+    int relaydata();
 	int login(std::string user, std::string pass)
 	{
 		if (user == "server"&&pass == "123456")
