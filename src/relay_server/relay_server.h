@@ -13,14 +13,6 @@ public:
 		socketclose();
 	}
 
-    int relaydata();
-	int login(std::string user, std::string pass)
-	{
-		if (user == "server"&&pass == "123456")
-			return 1;
-		if (user == "admin"&&pass == "654321")
-			return 2;
-		if (user == "client"&&pass == "123")
-			return 3;
-	}
+    void relaydata();
+    int login(std::string user, std::string pass);
 };

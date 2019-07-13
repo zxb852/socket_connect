@@ -1,6 +1,4 @@
 #pragma once
-#define _WINSOCK_DEPRECATED_NO_WARNINGS 0
-#define LISTEN_LENGTH 20
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -18,7 +16,11 @@
 
 //using namespace std;
 using namespace cv;
-//using cv::Mat;
+
+
+extern std::mutex io_mutex;
+extern std::vector<uchar> data_encode;
+const static int LISTEN_LENGTH = 20;
 
 void* server_dataexchange(void *soc);
 void* server_listen(void *soc);
@@ -40,9 +42,9 @@ struct sample
 
 	sample(int ia, std::string ib, double ic) :a(ia), c(ic)
 	{
-		int strlen = ib.length();
+        int strlen = ib.length();
 		for (int i = 0;i<std::min(strlen,20);i++)
-			b[i] = ib[i];
+            b[i] = ib[i];
 	}
 };
 
@@ -76,22 +78,16 @@ struct state_mes
 class socket_connect
 {
 public:
-	typedef int socket_id;
-	// 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
-	typedef std::pair<int,int> data_head;
-
-    int mysocket;
-	socket_id children_id = 10;
-	//socketid threadid;
-
-	socket_connect()			//手动创建socket主对象  or 创建客户端（相当于子对象）
+    typedef int socket_id;
+    typedef std::pair<int,int> data_head;
+    socket_connect()            //手动创建socket主对象  or 创建客户端（相当于子对象）
 	{
 		mysocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		ismain = true;
 		heart_flag = true;
 		d_flag = std::make_shared<bool>(false);
 	}
-	~socket_connect()			//析构函数，关闭本socket
+    virtual ~socket_connect()	//析构函数，关闭本socket
 	{
 		*d_flag = true;
 		shutdown(mysocket, 2);
@@ -101,6 +97,13 @@ public:
 	}
 	void server_init(const char *ip, int port);
 	bool s_connect(const char *ip, int port);
+    //断开连接,当对象为子对象时，断开与服务器的连接.
+    void disconnect()
+    {
+        s_send_base(-1, nullptr, 0,0);
+    }
+    //登录,设定用户类型
+    virtual int login(std::string user, std::string pass);
 
 	//######外部接口#########
 	//发送数据，将数据压入发送队列
@@ -112,38 +115,28 @@ public:
 	bool recv_buff_pop(Mat &output, int &tid);
 	bool recv_buff_pop(sample &output, int &tid);
 	//########################
-	//当对象为子对象时，断开与服务器的连接
-	void disconnect()
-	{
-		s_send_base(-1, nullptr, 0,0);
-	}
-	int login(std::string user, std::string pass)
-	{
-		if (user == "server"&&pass == "123456")
-			return 1;
-		if (user == "admin"&&pass == "654321")
-			return 2;
-		if (user == "client"&&pass == "123")
-			return 3;
-	}
 
 
 protected:
+    //发送缓冲区(主对象 or 子对象),	socketid==threadid时 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
+    std::queue<std::pair<data_head, Mat>> send_q_mat;
+    std::queue<std::pair<data_head, sample>> send_q_sample;
+    std::queue<std::pair<data_head, login_mes>> send_q_login_mes;
+
+    //接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
+    std::queue <std::pair<data_head, Mat>> recv_q_mat;
+    std::queue<std::pair<data_head, sample>> recv_q_sample;
+    std::queue<std::pair<data_head, login_mes>> recv_q_login_mes;
+private:
+
+    // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
+    int mysocket;
+    socket_id children_id = 10;
 	bool ismain;									// false:子对象（or客户端）  true:主对象
 	bool heart_flag;								//心跳标志位，当==false时，代表对象已断开。
 	std::shared_ptr<bool> d_flag;
 	std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
     std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
-
-	//发送缓冲区(主对象 or 子对象),	socketid==threadid时 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
-	std::queue<std::pair<data_head, Mat>> send_q_mat;
-	std::queue<std::pair<data_head, sample>> send_q_sample;
-	std::queue<std::pair<data_head, login_mes>> send_q_login_mes;
-
-	//接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
-	std::queue <std::pair<data_head, Mat>> recv_q_mat;
-	std::queue<std::pair<data_head, sample>> recv_q_sample;
-	std::queue<std::pair<data_head, login_mes>> recv_q_login_mes;
 
     socket_connect(int s)	//自动创建socket子对象
 	{
@@ -188,37 +181,9 @@ protected:
 	void s_recv();
 
 	//具体通信方法，实现子对象与客户端通信
-	void s_send_base(int datatype, const char *data, int size,int send_tag);
-	void s_sendmat(Mat image, socket_id tid);
-	template<class T> void s_senddata(T src, socket_id tid)
-	{
-		//mode=-2:心跳包 mode=-1:断开连接  mode=1:Mat mode=2:sample mode=3:login_mes
-		int mode = 0;
-		//std::cout << typeid(T).name() << std::endl;
-		//std::cout << typeid(sample).name() << std::endl;
-		if (typeid(T) == typeid(sample))
-			mode = 2;
-		else if (typeid(T) == typeid(login_mes))
-			mode = 3;
-		
-		char data[10000];
-
-		memset(data, 0, sizeof(data));				// 对该内存段进行清
-		memcpy(data, &src, sizeof(src));			// 把这个结构体中的信息从内存中读入到字符串data中
-													//接下来传送temp这个字符串就可以了
-		s_send_base(mode, data, sizeof(src), tid);
-	}
-
-	Mat s_recvmat(char *data, int length);
-	template<class T> T s_recvdata(char *data, int length)
-	{
-		T result;
-		T *p = (T *)malloc(length);
-		memcpy(p, data, length);
-		result = *p;
-		free(p);
-		return result;
-	}
+    void s_send_base(int datatype, const char *data, int size,int send_tag);
+    template<class T> void s_senddata(T src, socket_id tid);
+    template<class T> T s_recvdata(char *data, int length);
 
     friend void* server_dataexchange(void *soc);
     friend void* server_listen(void *soc);
@@ -228,7 +193,11 @@ protected:
     friend void* client_heart(void *soc);
 };
 
+template<>
+void socket_connect::s_senddata<Mat>(Mat src, socket_id tid);
 
+template<>
+Mat socket_connect::s_recvdata<Mat>(char *data, int length);
 
 /*
 	各数据类型以及对应标识

@@ -1,8 +1,6 @@
 #include "relay_server.h"
-extern std::mutex io_mutex;
-extern std::vector<uchar> data_encode;
 
-int relay_server::relaydata()
+void relay_server::relaydata()
 {
     Mat src;
 
@@ -13,4 +11,15 @@ int relay_server::relaydata()
         recv_q_mat.pop();
     }
     io_mutex.unlock();
+}
+
+int relay_server::login(std::string user, std::string pass)
+{
+    if (user == "server"&&pass == "123456")
+        return 1;
+    if (user == "admin"&&pass == "654321")
+        return 2;
+    if (user == "client"&&pass == "123")
+        return 3;
+    return 0;
 }

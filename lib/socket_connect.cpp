@@ -2,6 +2,7 @@
 std::mutex io_mutex;
 std::vector<uchar> data_encode;
 
+
 void socketinit()
 {
 }
@@ -88,7 +89,7 @@ bool socket_connect::s_bind(const char *ip, int port)
 	addrServer.sin_family = AF_INET;
     addrServer.sin_addr.s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
-    bool result = bind(mysocket, (sockaddr*)&addrServer, sizeof(addrServer)) == 0;
+    bool result = bind(mysocket, reinterpret_cast<sockaddr*>(&addrServer), sizeof(addrServer)) == 0;
     listen(mysocket, LISTEN_LENGTH);
 	return result;
 }
@@ -97,21 +98,19 @@ void socket_connect::s_listen()
 {
 	//循环接收客户端连接请求并创建服务线程
     int conn;
-    int res;
     sockaddr_in addr;
     socklen_t len = sizeof(sockaddr);
-    conn = accept(mysocket, (sockaddr*)&addr, &len);
-	char recvBuf[10000];
+    conn = accept(mysocket, reinterpret_cast<sockaddr*>(&addr), &len);
 	
 	std::cout << "一个客户端已连接到服务器，socket是：" << conn << std::endl;
 	socket_connect *socketctl=new socket_connect(conn);	
 
     pthread_t t1;
-    res = pthread_create(&t1, NULL, listencallback_send, (void*)socketctl);
+    pthread_create(&t1, nullptr, listencallback_send, reinterpret_cast<void*>(socketctl));
     std::cout << "send thread id :" << t1 << std::endl;
 
     pthread_t t2;
-    res = pthread_create(&t2, NULL, listencallback_recv, (void*)socketctl);
+    pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(socketctl));
     std::cout << "recv thread id :" << t2 << std::endl;
 
 	children[children_id] = socketctl;
@@ -121,42 +120,40 @@ void socket_connect::s_listen()
 
 void socket_connect::server_init(const char * ip, int port)
 {
-    int res;
 	if (s_bind(ip, port))
 	{
 		std::cout << "bind" << ip << ":" << port << "    successfully" << std::endl;
 
         pthread_t tlisten;
-        res = pthread_create(&tlisten, NULL, server_listen, (void*)this);
+        pthread_create(&tlisten, nullptr, server_listen, reinterpret_cast<void*>(this));
         std::cout << "creat listen thread " << tlisten<<"    successfully" << std::endl;
 
         pthread_t tdata;
-        res = pthread_create(&tdata, NULL, server_dataexchange, (void*)this);
+        pthread_create(&tdata, nullptr, server_dataexchange, reinterpret_cast<void*>(this));
         std::cout << "creat data thread "<< tdata<<"         successfully" << std::endl;
 
         pthread_t theart;
-        res = pthread_create(&theart, NULL, server_heart, (void*)this);
+        pthread_create(&theart, nullptr, server_heart, reinterpret_cast<void*>(this));
         std::cout << "creat heart thread " << theart << "    successfully" << std::endl;
 	}
 }
 
 bool socket_connect::s_connect(const char *ip, int port)
 {
-    int res;
     sockaddr_in addrServer;
 	addrServer.sin_family = AF_INET;
     addrServer.sin_addr.s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
 	ismain = false;
-    if (connect(mysocket, (sockaddr*)&addrServer, sizeof(sockaddr)) == -1)
+    if (connect(mysocket, reinterpret_cast<sockaddr*>(&addrServer), sizeof(sockaddr)) == -1)
 		return false;
 
     pthread_t t;
-    res = pthread_create(&t, NULL, listencallback_send, (void*)this);
+    pthread_create(&t, nullptr, listencallback_send, reinterpret_cast<void*>(this));
     pthread_t t2;
-    res = pthread_create(&t2, NULL, listencallback_recv, (void*)this);
+    pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(this));
     pthread_t t3;
-    res = pthread_create(&t3, NULL, client_heart, (void*)this);
+    pthread_create(&t3, nullptr, client_heart, reinterpret_cast<void*>(this));
     std::cout << "client data contrl thread id set up : " << t << std::endl;
 	
 	return true;
@@ -215,6 +212,12 @@ bool socket_connect::recv_buff_pop(sample & output, int &tid)
 	return false;
 }
 
+int socket_connect::login(std::string user, std::string pass)
+{
+    std::cout << user << "----" << pass << std::endl;
+    return 0;
+}
+
 void socket_connect::s_send()
 {
 	io_mutex.lock();
@@ -226,7 +229,7 @@ void socket_connect::s_send()
 
 		if (!send_q_mat.empty())
 		{
-			s_sendmat(send_q_mat.front().second,send_q_mat.front().first.first);//发送数据部分以及head的第一位。
+            s_senddata(send_q_mat.front().second,send_q_mat.front().first.first);//发送数据部分以及head的第一位。
 			send_q_mat.pop();
 		}
 		if (!send_q_sample.empty())
@@ -283,7 +286,7 @@ void socket_connect::s_recv()
 				if (intmode == -1)
 					*d_flag = true;
 				else if (intmode == 1)
-					recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), s_recvmat(data, intlength)));
+                    recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), s_recvdata<Mat>(data, intlength)));
 				else if (intmode == 2)
 					recv_q_sample.push(std::pair<data_head, sample>(data_head(0, inttag), s_recvdata<sample>(data, intlength)));
 				else if (intmode == 3)
@@ -307,11 +310,11 @@ void socket_connect::s_send_base(int datatype, const char *data, int size,int se
     std::cout << "len:" << len << std::endl;
     std::cout << "tag:" << send_tag << std::endl;
 
-	for (int i = 0;i < type.length();++i)
+    for (int i = 0;i < static_cast<int>(type.length());++i)
 		send_char[i] = type[i];
-	for (int i = 16; i < 16 + len.length(); ++i)
+    for (int i = 16; i < 16 + static_cast<int>(len.length()); ++i)
 		send_char[i] = len[i - 16];
-	for (int i = 32; i < 32 + tag.length(); ++i)
+    for (int i = 32; i < 32 + static_cast<int>(tag.length()); ++i)
 		send_char[i] = tag[i - 32];
 	for (int i = 48;i < size + 48;++i)
 		send_char[i] = data[i - 48];
@@ -319,32 +322,64 @@ void socket_connect::s_send_base(int datatype, const char *data, int size,int se
 	send(mysocket, send_char, 48 + size, 0);
 }
 
-void socket_connect::s_sendmat(Mat image, socket_id tid)
+template<class T>
+void socket_connect::s_senddata(T src, socket_id tid)
 {
-	data_encode.clear();
-	imencode(".jpg", image, data_encode);
-	char data[100000]={0};
-	for (int i = 0; i < data_encode.size(); i++)
-		data[i] = data_encode[i];
-	s_send_base(1, data, data_encode.size(), tid);
+    //mode=-2:心跳包 mode=-1:断开连接  mode=1:Mat mode=2:sample mode=3:login_mes
+    int mode = 0;
+    //std::cout << typeid(T).name() << std::endl;
+    //std::cout << typeid(sample).name() << std::endl;
+    if (typeid(T) == typeid(sample))
+        mode = 2;
+    else if (typeid(T) == typeid(login_mes))
+        mode = 3;
+
+    char data[10000];
+
+    memset(data, 0, sizeof(data));				// 对该内存段进行清
+    memcpy(data, &src, sizeof(src));			// 把这个结构体中的信息从内存中读入到字符串data中
+                                                //接下来传送temp这个字符串就可以了
+    s_send_base(mode, data, sizeof(src), tid);
 }
 
-Mat socket_connect::s_recvmat(char * data, int length)
+template<>
+void socket_connect::s_senddata<Mat>(Mat src, socket_id tid)
 {
-	//std::cout << "recv mat" << std::endl;
-	Mat result;
-	std::vector<uchar> vdata;
-	for (int i = 0;i < length;++i)
-		vdata.push_back(data[i]);
+    data_encode.clear();
+    imencode(".jpg", src, data_encode);
+    char data[100000]={0};
+    for (int i = 0; i < static_cast<int>(data_encode.size()); i++)
+        data[i] = data_encode[i];
+    s_send_base(1, data, data_encode.size(), tid);
+}
+
+template<class T> T socket_connect::s_recvdata(char *data, int length)
+{
+    T result;
+    T *p = reinterpret_cast<T *>(malloc(length));
+    memcpy(p, data, length);
+    result = *p;
+    free(p);
+    return result;
+}
+
+template<>
+Mat socket_connect::s_recvdata<Mat>(char *data, int length)
+{
+    //std::cout << "recv mat" << std::endl;
+    Mat result;
+    std::vector<uchar> vdata;
+    for (int i = 0;i < length;++i)
+        vdata.push_back(data[i]);
     result = cv::imdecode(vdata, IMREAD_COLOR);
-	resize(result, result, cv::Size(640, 480));
-	return result;
+    resize(result, result, cv::Size(640, 480));
+    return result;
 }
 
 void* server_dataexchange(void * soc)
 {
 	//开始线程，获得本线程socket指针。
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
 	{
@@ -353,13 +388,14 @@ void* server_dataexchange(void * soc)
 		socket_ptr->updatesendbuff();
 		socket_ptr->updaterecvbuff();
 	}
+    return nullptr;
 }
 
 void* server_listen(void * soc)
 {
 	//开始线程，获得本线程socket指针。
 	//std::cout << std::this_thread::get_id();
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
 	{
@@ -367,12 +403,13 @@ void* server_listen(void * soc)
 			break;
 		socket_ptr->s_listen();
 	}
+    return nullptr;
 }
 
 void* server_heart(void * soc)
 {
 	//开始线程，获得本线程socket指针。
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
 	{
@@ -424,12 +461,13 @@ void* server_heart(void * soc)
 		}
 		io_mutex.unlock();
 	}
+    return nullptr;
 }
 
 void* listencallback_send(void *soc)
 {
 	//开始线程，获得本线程socket指针。
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 
 	while (1)
@@ -439,13 +477,14 @@ void* listencallback_send(void *soc)
 			break;
 		socket_ptr->s_send();
 	}
+    return nullptr;
 
 }
 
 void* listencallback_recv(void *soc)
 {
 	//开始线程，获得本线程socket指针。
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
 	{
@@ -455,12 +494,13 @@ void* listencallback_recv(void *soc)
 		socket_ptr->s_recv();
 		
 	}
+    return nullptr;
 }
 
 void* client_heart(void *soc)
 {
 	//开始线程，获得本线程socket指针。
-	socket_connect *socket_ptr = (socket_connect*)soc;
+    socket_connect *socket_ptr = reinterpret_cast<socket_connect*>(soc);
 	std::shared_ptr<bool> d_flag = socket_ptr->d_flag;
 	while (1)
 	{
@@ -473,4 +513,5 @@ void* client_heart(void *soc)
 		socket_ptr->s_send_base(-2, nullptr, 0,0);
 		io_mutex.unlock();
 	}
+    return nullptr;
 }
