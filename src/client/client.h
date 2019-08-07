@@ -6,11 +6,11 @@ class client :public socket_connect
 public:
 	client()
 	{
-		socketinit();
+		//socketinit();
 	}
 	~client()
 	{
 		disconnect();
-		socketclose();
+		//socketclose();
 	}
 };

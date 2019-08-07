@@ -5,9 +5,10 @@ using namespace cv;
 
 int main()
 {
+	socketinit();
     client s_client;
-    s_client.s_connect("39.108.229.151", 8010);
-    //s_client.s_connect("127.0.0.1", 8010);
+    //s_client.s_connect("39.108.229.151", 8010);
+    s_client.s_connect("127.0.0.1", 8010);
     s_client.send_buff_push(login_mes("client", "123"));
 
     int tid;
@@ -25,6 +26,7 @@ int main()
             cv::waitKey(1);
         }
     }
+	socketclose();
 	getchar();
 	return 0;
 }

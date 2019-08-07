@@ -5,10 +5,18 @@ std::vector<uchar> data_encode;
 
 void socketinit()
 {
+#ifdef Windows
+	WSADATA wsd;
+	WSAStartup(MAKEWORD(2, 0), &wsd);
+#endif // Windows
+
 }
 
 void socketclose()
 {
+#ifdef Windows
+	WSACleanup();
+#endif // Windows
 }
 
 void socket_connect::updatesendbuff()
@@ -85,11 +93,11 @@ void socket_connect::updaterecvbuff()
 
 bool socket_connect::s_bind(const char *ip, int port)
 {
-    sockaddr_in addrServer;
+	_SOCKADDR_IN addrServer;
 	addrServer.sin_family = AF_INET;
     addrServer.sin_addr.s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
-    bool result = bind(mysocket, reinterpret_cast<sockaddr*>(&addrServer), sizeof(addrServer)) == 0;
+    bool result = bind(mysocket, reinterpret_cast<_SOCKADDR*>(&addrServer), sizeof(addrServer)) == 0;
     listen(mysocket, LISTEN_LENGTH);
 	return result;
 }
@@ -97,21 +105,35 @@ bool socket_connect::s_bind(const char *ip, int port)
 void socket_connect::s_listen()
 {
 	//循环接收客户端连接请求并创建服务线程
-    int conn;
-    sockaddr_in addr;
-    socklen_t len = sizeof(sockaddr);
-    conn = accept(mysocket, reinterpret_cast<sockaddr*>(&addr), &len);
+	_SOCKET conn;
+	_SOCKADDR_IN addr;
+	_socklen_t len = sizeof(_SOCKADDR);
+    conn = accept(mysocket, reinterpret_cast<_SOCKADDR*>(&addr), &len);
 	
 	std::cout << "一个客户端已连接到服务器，socket是：" << conn << std::endl;
 	socket_connect *socketctl=new socket_connect(conn);	
 
-    pthread_t t1;
-    pthread_create(&t1, nullptr, listencallback_send, reinterpret_cast<void*>(socketctl));
-    std::cout << "send thread id :" << t1 << std::endl;
+#ifdef Windows
+	std::thread t1(listencallback_send, socketctl);
+	std::cout << "send thread id :" << t1.get_id() << std::endl;
+	t1.detach();
 
-    pthread_t t2;
-    pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(socketctl));
-    std::cout << "recv thread id :" << t2 << std::endl;
+	std::thread t2(listencallback_recv, socketctl);
+	std::cout << "recv thread id :" << t2.get_id() << std::endl;
+	t2.detach();
+#endif // Windows
+
+
+#ifdef Linux
+	pthread_t t1;
+	pthread_create(&t1, nullptr, listencallback_send, reinterpret_cast<void*>(socketctl));
+	std::cout << "send thread id :" << t1 << std::endl;
+
+	pthread_t t2;
+	pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(socketctl));
+	std::cout << "recv thread id :" << t2 << std::endl;
+
+#endif // Linux
 
 	children[children_id] = socketctl;
 	childrenctrl[children_id] = 0;
@@ -123,38 +145,71 @@ void socket_connect::server_init(const char * ip, int port)
 	if (s_bind(ip, port))
 	{
 		std::cout << "bind" << ip << ":" << port << "    successfully" << std::endl;
+#ifdef Windows
+		std::thread tlisten(server_listen, this);
+		std::cout << "creat listen thread " << tlisten.get_id() << "    successfully" << std::endl;
+		tlisten.detach();
 
-        pthread_t tlisten;
-        pthread_create(&tlisten, nullptr, server_listen, reinterpret_cast<void*>(this));
-        std::cout << "creat listen thread " << tlisten<<"    successfully" << std::endl;
+		std::thread tdata(server_dataexchange, this);
+		std::cout << "creat data thread " << tdata.get_id() << "         successfully" << std::endl;
+		tdata.detach();
 
-        pthread_t tdata;
-        pthread_create(&tdata, nullptr, server_dataexchange, reinterpret_cast<void*>(this));
-        std::cout << "creat data thread "<< tdata<<"         successfully" << std::endl;
+		std::thread theart(server_heart, this);
+		std::cout << "creat heart thread " << theart.get_id() << "    successfully" << std::endl;
+		theart.detach();
+#endif
 
-        pthread_t theart;
-        pthread_create(&theart, nullptr, server_heart, reinterpret_cast<void*>(this));
-        std::cout << "creat heart thread " << theart << "    successfully" << std::endl;
+#ifdef Linux
+		pthread_t tlisten;
+		pthread_create(&tlisten, nullptr, server_listen, reinterpret_cast<void*>(this));
+		std::cout << "creat listen thread " << tlisten << "    successfully" << std::endl;
+
+		pthread_t tdata;
+		pthread_create(&tdata, nullptr, server_dataexchange, reinterpret_cast<void*>(this));
+		std::cout << "creat data thread " << tdata << "         successfully" << std::endl;
+
+		pthread_t theart;
+		pthread_create(&theart, nullptr, server_heart, reinterpret_cast<void*>(this));
+		std::cout << "creat heart thread " << theart << "    successfully" << std::endl;
+#endif
+        
+	}
+	else
+	{
+		std::cout << "bind failed" << std::endl;
 	}
 }
 
 bool socket_connect::s_connect(const char *ip, int port)
 {
-    sockaddr_in addrServer;
+	_SOCKADDR_IN addrServer;
 	addrServer.sin_family = AF_INET;
-    addrServer.sin_addr.s_addr = inet_addr(ip);
+    addrServer.sin_addr._s_addr = inet_addr(ip);
 	addrServer.sin_port = htons(port);
 	ismain = false;
-    if (connect(mysocket, reinterpret_cast<sockaddr*>(&addrServer), sizeof(sockaddr)) == -1)
+    if (connect(mysocket, reinterpret_cast<_SOCKADDR*>(&addrServer), sizeof(_SOCKADDR)) == -1)
 		return false;
 
-    pthread_t t;
-    pthread_create(&t, nullptr, listencallback_send, reinterpret_cast<void*>(this));
-    pthread_t t2;
-    pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(this));
-    pthread_t t3;
-    pthread_create(&t3, nullptr, client_heart, reinterpret_cast<void*>(this));
-    std::cout << "client data contrl thread id set up : " << t << std::endl;
+#ifdef Windows
+	std::thread t(listencallback_send, this);
+	t.detach();
+	std::thread t2(listencallback_recv, this);
+	t2.detach();
+	std::thread t3(client_heart, this);
+	t3.detach();
+	std::cout << "client data contrl thread id set up : " << t.get_id() << std::endl;
+#endif
+
+#ifdef Linux
+	pthread_t t;
+	pthread_create(&t, nullptr, listencallback_send, reinterpret_cast<void*>(this));
+	pthread_t t2;
+	pthread_create(&t2, nullptr, listencallback_recv, reinterpret_cast<void*>(this));
+	pthread_t t3;
+	pthread_create(&t3, nullptr, client_heart, reinterpret_cast<void*>(this));
+	std::cout << "client data contrl thread id set up : " << t << std::endl;
+#endif
+    
 	
 	return true;
 }
@@ -418,7 +473,7 @@ void* server_heart(void * soc)
 
         for (int i = 0;i < 10;i++)
 		{
-            sleep(1);
+			_CSLEEP(1);
 			io_mutex.lock();
 			for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();)
 			{
@@ -507,7 +562,7 @@ void* client_heart(void *soc)
 		//std::cout << "only for test" << std::endl;
 		if (*d_flag == true)
 			break;
-        sleep(5);
+		_CSLEEP(5);
 		io_mutex.lock();
 		//std::cout << "发了心跳" << std::endl;
 		socket_ptr->s_send_base(-2, nullptr, 0,0);

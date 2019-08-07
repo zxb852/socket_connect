@@ -6,12 +6,12 @@ class server : public socket_connect
 public:
 	server()
     {
-		socketinit();
+		//socketinit();
 	}
 	~server()
 	{
 		disconnect();
-		socketclose();
+		//socketclose();
 	}
 
 };

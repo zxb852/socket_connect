@@ -1,4 +1,33 @@
 #pragma once
+#define Windows
+//#define Linux
+
+#ifdef Windows
+#define _WINSOCK_DEPRECATED_NO_WARNINGS 0
+#include <stdio.h>
+#include <Winsock2.h>
+#include <opencv2/opencv.hpp>
+#include <vector> 
+#include <fstream>
+#include <thread>
+#include <mutex>
+#include <map>
+#include <queue>
+#include <utility>
+#include<memory>
+#pragma comment(lib,"ws2_32.lib")
+
+#define _close(x) closesocket(x)
+#define _SOCKET SOCKET
+#define _SOCKADDR_IN SOCKADDR_IN
+#define _socklen_t int
+#define _SOCKADDR SOCKADDR
+#define _s_addr S_un.S_addr
+#define _CSLEEP(n) Sleep(1000*n)
+
+#endif
+
+#ifdef Linux
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -13,6 +42,18 @@
 #include <queue>
 #include <utility>
 #include <memory>
+
+#define _close(x) close(x)
+#define _SOCKET int
+#define _SOCKADDR_IN sockaddr_in
+#define _socklen_t socklen_t
+#define _SOCKADDR sockaddr
+#define _s_addr s_addr
+#define _CSLEEP(n) sleep(n)
+
+#endif
+
+
 
 //using namespace std;
 using namespace cv;
@@ -91,7 +132,7 @@ public:
 	{
 		*d_flag = true;
 		shutdown(mysocket, 2);
-        close(mysocket);
+		_close(mysocket);
 		for (auto i : children)
 			delete i.second;
 	}

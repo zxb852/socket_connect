@@ -5,9 +5,10 @@ using namespace cv;
 
 int main()
 {
+	socketinit();
     server s_server;
-    s_server.s_connect("39.108.229.151", 8010);
-    //s_server.s_connect("127.0.0.1", 8010);
+    //s_server.s_connect("39.108.229.151", 8010);
+    s_server.s_connect("127.0.0.1", 8010);
     s_server.send_buff_push(login_mes("server", "123456"));
 
     VideoCapture cap;
@@ -15,7 +16,7 @@ int main()
     Mat frame;
 
     int loop = 0;
-    while (loop++ != 50)
+    while (loop++ != 300)
     {
         cap >> frame;
         resize(frame, frame, Size(160, 140));
@@ -23,8 +24,8 @@ int main()
         cv::waitKey(100);
     }
 
-
+	socketclose();
     getchar();
-    socketclose();
+    
     return 0;
 }

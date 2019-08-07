@@ -6,11 +6,11 @@ class relay_server: public socket_connect
 public:
 	relay_server()
 	{
-		socketinit();
+		//socketinit();
 	}
 	~relay_server()
 	{
-		socketclose();
+		//socketclose();
 	}
 
     void relaydata();
