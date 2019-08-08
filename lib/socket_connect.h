@@ -1,5 +1,5 @@
 #pragma once
-#define Windows
+
 //#define Linux
 
 #ifdef Windows
@@ -116,12 +116,48 @@ struct state_mes
 
 };
 
+template<typename T>
+class buffer
+{
+public:
+	buffer(int l=100)
+	{
+		length = l;
+	}
+	bool empty()
+	{
+		return data.empty();
+	}
+	void push(std::pair<std::pair<int, int>, T> &element)
+	{
+		if (data.size() < length)
+			data.push(element);
+		else
+		{
+			data.pop();
+			data.push(element);
+		}
+	}
+	void pop()
+	{
+		data.pop();
+	}
+	std::pair<std::pair<int, int>, T>& front()
+	{
+		return data.front();
+	}
+private:
+	std::queue<std::pair<std::pair<int, int>, T>> data;
+	int length;
+	
+};
+
 class socket_connect
 {
 public:
     typedef int socket_id;
     typedef std::pair<int,int> data_head;
-    socket_connect()            //手动创建socket主对象  or 创建客户端（相当于子对象）
+    socket_connect(): send_q_mat(20), recv_q_mat(20)     //手动创建socket主对象  or 创建客户端（相当于子对象）
 	{
 		mysocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		ismain = true;
@@ -160,14 +196,14 @@ public:
 
 protected:
     //发送缓冲区(主对象 or 子对象),	socketid==threadid时 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
-    std::queue<std::pair<data_head, Mat>> send_q_mat;
-    std::queue<std::pair<data_head, sample>> send_q_sample;
-    std::queue<std::pair<data_head, login_mes>> send_q_login_mes;
+	buffer<Mat> send_q_mat;
+	buffer<sample> send_q_sample;
+	buffer<login_mes> send_q_login_mes;
 
     //接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
-    std::queue <std::pair<data_head, Mat>> recv_q_mat;
-    std::queue<std::pair<data_head, sample>> recv_q_sample;
-    std::queue<std::pair<data_head, login_mes>> recv_q_login_mes;
+	buffer<Mat> recv_q_mat;
+	buffer<sample> recv_q_sample;
+	buffer<login_mes> recv_q_login_mes;
 private:
 
     // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象

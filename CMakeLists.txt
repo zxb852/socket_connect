@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 2.6)
 project (developing)
-
+add_definitions(-Linux)
 set (Developing_VERSION_MAJOR 1)
 set (Developing_VERSION_MINOR 0)
 set( CMAKE_CXX_FLAGS "-std=c++11 -O3")
