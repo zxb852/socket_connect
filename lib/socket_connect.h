@@ -1,7 +1,5 @@
 #pragma once
 
-//#define Linux
-
 #ifdef Windows
 #define _WINSOCK_DEPRECATED_NO_WARNINGS 0
 #include <stdio.h>
@@ -73,6 +71,20 @@ void* client_heart(void *soc);
 void socketinit();
 void socketclose();
 
+class mymutex
+{
+public:
+    mymutex()
+    {
+        io_mutex.lock();
+    }
+    ~mymutex()
+    {
+        io_mutex.unlock();
+    }
+
+};
+
 struct sample
 {
 	int a=0;
@@ -128,7 +140,7 @@ public:
 	{
 		return data.empty();
 	}
-	void push(std::pair<std::pair<int, int>, T> &element)
+	void push(const std::pair<std::pair<int, int>, T> &element)
 	{
 		if (data.size() < length)
 			data.push(element);

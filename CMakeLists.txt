@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 2.6)
 project (developing)
-add_definitions(-Linux)
+add_definitions(-D Linux)
 set (Developing_VERSION_MAJOR 1)
 set (Developing_VERSION_MINOR 0)
 set( CMAKE_CXX_FLAGS "-std=c++11 -O3")
@@ -12,7 +12,6 @@ message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBS}") 
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-include_directories(${OpenCV_INCLUDE_DIRS})
  
 include_directories("./lib")
 include_directories("./src/developing")

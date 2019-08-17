@@ -21,7 +21,7 @@ void socketclose()
 
 void socket_connect::updatesendbuff()
 {
-	io_mutex.lock();
+    mymutex m;
 	for (auto i : children)
 	{
 		if (childrenctrl[i.first] != 0)
@@ -52,12 +52,11 @@ void socket_connect::updatesendbuff()
 		send_q_mat.pop();
 	if (!send_q_sample.empty())
 		send_q_sample.pop();
-	io_mutex.unlock();
 }
 
 void socket_connect::updaterecvbuff()
 {
-	io_mutex.lock();
+    mymutex m;
 	for (auto i : children)
 	{
 		socket_connect* childsocket = i.second;
@@ -88,7 +87,6 @@ void socket_connect::updaterecvbuff()
 			childsocket->recv_q_login_mes.pop();
 		}
 	}
-	io_mutex.unlock();
 }
 
 bool socket_connect::s_bind(const char *ip, int port)
@@ -216,54 +214,47 @@ bool socket_connect::s_connect(const char *ip, int port)
 
 void socket_connect::send_buff_push(Mat image, int tid)
 {
-	io_mutex.lock();
+    mymutex m;
 	send_q_mat.push(std::pair<data_head, Mat>(data_head(tid, 0), image));
-	io_mutex.unlock();
 }
 
 void socket_connect::send_buff_push(sample src, int tid)
 {
-	io_mutex.lock();
+    mymutex m;
 	send_q_sample.push(std::pair<data_head, sample>(data_head(tid, 0), src));
-	io_mutex.unlock();
 }
 
 void socket_connect::send_buff_push(login_mes src, int tid)
 {
-	io_mutex.lock();
+    mymutex m;
 	send_q_login_mes.push(std::pair<data_head, login_mes>(data_head(tid, 0), src));
-	io_mutex.unlock();
 }
 
 bool socket_connect::recv_buff_pop(Mat & output, int &tid)
 {
-	io_mutex.lock();
+    mymutex m;
 	if (!recv_q_mat.empty())
 	{
 		auto &step = recv_q_mat.front();
 		tid = step.first.second;
 		output = step.second.clone();
 		recv_q_mat.pop();
-		io_mutex.unlock();
 		return true;
 	}
-	io_mutex.unlock();
 	return false;
 }
 
 bool socket_connect::recv_buff_pop(sample & output, int &tid)
 {
-	io_mutex.lock();
+    mymutex m;
 	if (!recv_q_sample.empty())
 	{
 		auto &step = recv_q_sample.front();
 		tid = step.first.second;
 		output = step.second;
 		recv_q_sample.pop();
-		io_mutex.unlock();
 		return true;
 	}
-	io_mutex.unlock();
 	return false;
 }
 
@@ -275,7 +266,7 @@ int socket_connect::login(std::string user, std::string pass)
 
 void socket_connect::s_send()
 {
-	io_mutex.lock();
+    mymutex m;
 	if(ismain)
 		updatesendbuff();
 	else
@@ -298,16 +289,14 @@ void socket_connect::s_send()
 			send_q_login_mes.pop();
 		}
 	}
-	io_mutex.unlock();
 }
 
 void socket_connect::s_recv()
 {
 	if (ismain)
 	{
-		io_mutex.lock();
+        mymutex m;
 		updaterecvbuff();
-		io_mutex.unlock();
 	}
 	else
 	{
@@ -334,7 +323,7 @@ void socket_connect::s_recv()
 				recv(mysocket, recvBuf_1, 1, 0);
 				data[i] = recvBuf_1[0];
 			}
-			io_mutex.lock();
+            mymutex m;
 			if (intmode != 0)
 			{
 				heart_flag = true;
@@ -348,7 +337,6 @@ void socket_connect::s_recv()
 					recv_q_login_mes.push(std::pair<data_head, login_mes>(data_head(0, inttag), s_recvdata<login_mes>(data, intlength)));
 
 			}
-			io_mutex.unlock();
 		}
 	}
 }
@@ -474,29 +462,22 @@ void* server_heart(void * soc)
         for (int i = 0;i < 10;i++)
 		{
 			_CSLEEP(1);
-			io_mutex.lock();
-			for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();)
+            mymutex m;
+            for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();i++)
 			{
-				if (socket_ptr->children.empty())
-					break;
 				if (*(i->second->d_flag) == true)
 				{
 					std::cout << "disconnect require" << std::endl;
 					socket_ptr->deletechild(i->first);
+                    i=socket_ptr->children.begin();
 				}
-				else
-					i++;
-
 			}
-			io_mutex.unlock();
 		}
 
-		io_mutex.lock();
+        mymutex m;
 		//std::cout << "only for test" << std::endl;
-		for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();)
+        for (auto i = socket_ptr->children.begin();i != socket_ptr->children.end();i++)
 		{
-			if (socket_ptr->children.empty())
-				break;
 			if (*(i->second->d_flag) == true || i->second->heart_flag == false)
 			{
 				if (*(i->second->d_flag) == true)
@@ -505,16 +486,15 @@ void* server_heart(void * soc)
 					std::cout << "no heart" << std::endl;
 				std::cout << "thread bad" << std::endl;
 				socket_ptr->deletechild(i->first);
+                i=socket_ptr->children.begin();
 			}
 			else
 			{
 				std::cout << "thread ok" << std::endl;
 				i->second->heart_flag = false;
-				i++;
 			}
 			
 		}
-		io_mutex.unlock();
 	}
     return nullptr;
 }
@@ -563,10 +543,9 @@ void* client_heart(void *soc)
 		if (*d_flag == true)
 			break;
 		_CSLEEP(5);
-		io_mutex.lock();
+        mymutex m;
 		//std::cout << "发了心跳" << std::endl;
 		socket_ptr->s_send_base(-2, nullptr, 0,0);
-		io_mutex.unlock();
 	}
     return nullptr;
 }

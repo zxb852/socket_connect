@@ -23,9 +23,8 @@ int main()
         s_server.send_buff_push(frame.clone(),2);
         cv::waitKey(100);
     }
-
-	socketclose();
+    s_server.disconnect();
     getchar();
-    
+    socketclose();
     return 0;
 }
