@@ -1,7 +1,7 @@
 #include "socket_connect.h"
 std::mutex io_mutex;
 std::vector<uchar> data_encode;
-
+std::ofstream outfile;
 
 void socketinit()
 {
@@ -82,7 +82,6 @@ void socket_connect::updaterecvbuff()
 			auto &step = childsocket->recv_q_login_mes.front();
 			std::cout << "child identity changed from:" << childrenctrl[i.first];
 			childrenctrl[i.first] = login(step.second.username, step.second.password);
-			step.second.username[0] = 'a';
 			std::cout << "	to:" << childrenctrl[i.first]<<std::endl;
 			childsocket->recv_q_login_mes.pop();
 		}
@@ -230,6 +229,12 @@ void socket_connect::send_buff_push(login_mes src, int tid)
 	send_q_login_mes.push(std::pair<data_head, login_mes>(data_head(tid, 0), src));
 }
 
+void socket_connect::send_buff_push(std::string src, int tid)
+{
+	mymutex m;
+	send_q_vedio_name.push(std::pair<data_head, std::string>(data_head(tid, 0), src));
+}
+
 bool socket_connect::recv_buff_pop(Mat & output, int &tid)
 {
     mymutex m;
@@ -288,6 +293,11 @@ void socket_connect::s_send()
 			s_senddata(send_q_login_mes.front().second, send_q_login_mes.front().first.first);
 			send_q_login_mes.pop();
 		}
+		if (!send_q_vedio_name.empty())
+		{
+			s_senddata(send_q_vedio_name.front().second, send_q_vedio_name.front().first.first);
+			send_q_vedio_name.pop();
+		}
 	}
 }
 
@@ -300,76 +310,136 @@ void socket_connect::s_recv()
 	}
 	else
 	{
-		char mode[16];
+		char mode[1];
 		memset(mode, 0, sizeof(mode));
-		if (recv(mysocket, mode, 16, 0))	//Linux下flag设置为MSG_DONTWAIT，将recv工作在非阻塞模式下
+		if (recv(mysocket, mode, 1, 0))	//Linux下flag设置为MSG_DONTWAIT，将recv工作在非阻塞模式下
 		{
-			char length[16];
-			char tag[16];
+			char recvBuf_1[1];
+
+			char length[4];
+			char tag[1];
+			char pnum[1];
+			char save[2];
 			char data[100000];
+
 			memset(length, 0, sizeof(length));
 			memset(tag, 0, sizeof(tag));
+			memset(pnum, 0, sizeof(pnum));
+			memset(save, 0, sizeof(save));
 			memset(data, 0, sizeof(data));
 
-			recv(mysocket, length, 16, 0);
-			recv(mysocket, tag, 16, 0);
-			int intmode = atoi(mode);
-			int intlength = atoi(length);
-			int inttag = atoi(tag);
+			recv(mysocket, length, 4, 0);
+			recv(mysocket, tag, 1, 0);
+			recv(mysocket, pnum, 1, 0);
+			recv(mysocket, save, 2, 0);
 
-			for (int i = 0;i < intlength;++i)
+			int intmode = mode[0];
+			
+			DWORD la = 0X00FFFFFF | (length[3] << 24);
+			DWORD lb = 0XFF00FFFF | (length[2] << 16);
+			DWORD lc = 0XFFFF00FF | (length[1] << 8);
+			DWORD ld = 0XFFFFFF00 | length[0];
+			DWORD intlength= la&lb&lc&ld;
+
+			int inttag = tag[0];
+
+			int intpnum = pnum[0];
+
+			if (intmode == 5)		//接收到的是视频
 			{
-				char recvBuf_1[1];
-				recv(mysocket, recvBuf_1, 1, 0);
-				data[i] = recvBuf_1[0];
+				if (intpnum == 1)
+				{
+					////获取时间
+					//time_t timep;
+					//time(&timep);
+					//struct tm nowTime;
+					//localtime_s(&nowTime, &timep);
+					//nowTime.tm_year += 1900;
+					//nowTime.tm_mon += 1;
+					//std::string filename = std::to_string(nowTime.tm_year) + "."
+					//	+ nowTime.tm_mon + "."
+					//	+ nowTime.tm_mday + "."
+					//	+ nowTime.tm_hour + "."
+					//	+ nowTime.tm_min + "."
+					//	+ nowTime.tm_sec + ".avi";
+					////打开文件
+					
+					outfile.open("test.avi", std::ios_base::binary);
+					recv(mysocket, data, intlength, 0);
+					outfile.write(data, intlength);
+				}
+				else if(intpnum == -1)
+				{
+					outfile.close();
+				}
+				else
+				{
+					recv(mysocket, data, intlength, 0);
+					outfile.write(data, intlength);
+				}
 			}
-            mymutex m;
-			if (intmode != 0)
+			else
 			{
-				heart_flag = true;
-				if (intmode == -1)
-					*d_flag = true;
-				else if (intmode == 1)
-                    recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), s_recvdata<Mat>(data, intlength)));
-				else if (intmode == 2)
-					recv_q_sample.push(std::pair<data_head, sample>(data_head(0, inttag), s_recvdata<sample>(data, intlength)));
-				else if (intmode == 3)
-					recv_q_login_mes.push(std::pair<data_head, login_mes>(data_head(0, inttag), s_recvdata<login_mes>(data, intlength)));
+				for (int i = 0;i < intlength;++i)
+				{
+					recv(mysocket, recvBuf_1, 1, 0);
+					data[i] = recvBuf_1[0];
+				}
 
+
+				mymutex m;
+				if (intmode != 0)
+				{
+					heart_flag = true;
+					if (intmode == -1)
+						*d_flag = true;
+					else if (intmode == 1)
+						recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), s_recvdata<Mat>(data, intlength)));
+					else if (intmode == 2)
+						recv_q_sample.push(std::pair<data_head, sample>(data_head(0, inttag), s_recvdata<sample>(data, intlength)));
+					else if (intmode == 3)
+						recv_q_login_mes.push(std::pair<data_head, login_mes>(data_head(0, inttag), s_recvdata<login_mes>(data, intlength)));
+
+				}
 			}
 		}
 	}
 }
 
-void socket_connect::s_send_base(int datatype, const char *data, int size,int send_tag)
+void socket_connect::s_send_base(char datatype, const char *data, DWORD size,char send_tag,char pnum)
 {
 	char send_char[100000] = { 0 };
-	std::string type = std::to_string(datatype);
-	std::string len = std::to_string(size);
-	std::string tag = std::to_string(send_tag);
 	
     //std::cout << data_encode.size() << std::endl;
-    std::cout << "sending message......" << std::endl;
-    std::cout << "len:" << len << std::endl;
-    std::cout << "tag:" << send_tag << std::endl;
+    //std::cout << "sending message......" << std::endl;
+    //std::cout << "len:" << size << std::endl;
+    //std::cout << "tag:" << send_tag << std::endl;
 
-    for (int i = 0;i < static_cast<int>(type.length());++i)
-		send_char[i] = type[i];
-    for (int i = 16; i < 16 + static_cast<int>(len.length()); ++i)
-		send_char[i] = len[i - 16];
-    for (int i = 32; i < 32 + static_cast<int>(tag.length()); ++i)
-		send_char[i] = tag[i - 32];
-	for (int i = 48;i < size + 48;++i)
-		send_char[i] = data[i - 48];
+	send_char[0] = datatype;
 
-	send(mysocket, send_char, 48 + size, 0);
+	char csize[4];
+	memset(csize, 0, sizeof(csize));
+	memcpy(csize, &size, sizeof(DWORD));
+	std::string cmd = std::string(csize);
+	reverse(cmd.begin(), cmd.end());
+
+    for (int i = 1; i < 5 ; ++i)
+		send_char[i] = csize[i - 1];
+
+	send_char[5] = send_tag;
+	send_char[6] = pnum;
+
+	for (int i = 9;i < size + 9;++i)
+		send_char[i] = data[i - 9];
+
+	send(mysocket, send_char, 9 + size, 0);
 }
 
 template<class T>
 void socket_connect::s_senddata(T src, socket_id tid)
 {
     //mode=-2:心跳包 mode=-1:断开连接  mode=1:Mat mode=2:sample mode=3:login_mes
-    int mode = 0;
+    char mode = 0;
     //std::cout << typeid(T).name() << std::endl;
     //std::cout << typeid(sample).name() << std::endl;
     if (typeid(T) == typeid(sample))
@@ -382,7 +452,7 @@ void socket_connect::s_senddata(T src, socket_id tid)
     memset(data, 0, sizeof(data));				// 对该内存段进行清
     memcpy(data, &src, sizeof(src));			// 把这个结构体中的信息从内存中读入到字符串data中
                                                 //接下来传送temp这个字符串就可以了
-    s_send_base(mode, data, sizeof(src), tid);
+	s_send_base(mode, data, sizeof(src), tid);
 }
 
 template<>
@@ -396,7 +466,38 @@ void socket_connect::s_senddata<Mat>(Mat src, socket_id tid)
     s_send_base(1, data, data_encode.size(), tid);
 }
 
-template<class T> T socket_connect::s_recvdata(char *data, int length)
+template<>
+void socket_connect::s_senddata(std::string src, socket_id tid)
+{
+
+	char mode = 5;
+	char buf[10000];
+	int bei = 0, yue = 0;
+	std::ifstream infile;
+	std::cout<< src << std::endl;
+	infile.open(src, std::ios_base::binary);
+	if (!infile.is_open()) return;
+
+	infile.seekg(0, std::ios::end);
+	//std::cout << infile.tellg() << std::endl;
+	DWORD length = infile.tellg();
+	infile.seekg(0, std::ios::beg);
+	bei = length / 10000;
+	yue = length % 10000;
+
+	int pnum = 0;
+	for(int i=0;i<bei;i++)
+	{
+		infile.read(buf, sizeof(buf));
+		s_send_base(mode, buf, sizeof(buf), tid, ++pnum);
+	}
+	infile.read(buf, yue);
+	s_send_base(mode, buf, yue, tid, ++pnum);
+	s_send_base(mode, nullptr, 0, 0, -1);
+	infile.close();
+}
+
+template<class T> T socket_connect::s_recvdata(char *data, DWORD length)
 {
     T result;
     T *p = reinterpret_cast<T *>(malloc(length));
@@ -407,7 +508,7 @@ template<class T> T socket_connect::s_recvdata(char *data, int length)
 }
 
 template<>
-Mat socket_connect::s_recvdata<Mat>(char *data, int length)
+Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length)
 {
     //std::cout << "recv mat" << std::endl;
     Mat result;
@@ -545,7 +646,7 @@ void* client_heart(void *soc)
 		_CSLEEP(5);
         mymutex m;
 		//std::cout << "发了心跳" << std::endl;
-		socket_ptr->s_send_base(-2, nullptr, 0,0);
+		socket_ptr->s_send_base(-2, nullptr, 0,0,0);
 	}
     return nullptr;
 }

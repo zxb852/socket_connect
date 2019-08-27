@@ -105,6 +105,7 @@ struct login_mes
 {
 	char username[21] = { 0 };
 	char password[21] = { 0 };
+	char confirm = 0;
 	login_mes() = default;
 	login_mes(std::string iusername, std::string ipassword)
 	{
@@ -125,7 +126,14 @@ struct device_change
 
 struct state_mes
 {
-
+	char mode = 0;			//故障类型
+	int32_t dev = 0;		//故障设备编号
+	int32_t year = 0;		//故障时间：年
+	int32_t mon = 0;		//故障时间：月
+	int32_t day = 0;		//故障时间：日
+	int32_t hour = 0;		//故障时间：时
+	int32_t min = 0;		//故障时间：分
+	int32_t sec = 0;		//故障时间：秒
 };
 
 template<typename T>
@@ -167,7 +175,7 @@ private:
 class socket_connect
 {
 public:
-    typedef int socket_id;
+    typedef char socket_id;
     typedef std::pair<int,int> data_head;
     socket_connect(): send_q_mat(20), recv_q_mat(20)     //手动创建socket主对象  or 创建客户端（相当于子对象）
 	{
@@ -189,7 +197,7 @@ public:
     //断开连接,当对象为子对象时，断开与服务器的连接.
     void disconnect()
     {
-        s_send_base(-1, nullptr, 0,0);
+		s_send_base(-1, nullptr, 0, 0, 0);
     }
     //登录,设定用户类型
     virtual int login(std::string user, std::string pass);
@@ -200,6 +208,7 @@ public:
 	void send_buff_push(Mat image, int tid);
 	void send_buff_push(sample src, int tid);
     void send_buff_push(login_mes src, int tid = 1);
+	void send_buff_push(std::string src, int tid);
 	//接收数据，将数据弹出接收队列
 	bool recv_buff_pop(Mat &output, int &tid);
 	bool recv_buff_pop(sample &output, int &tid);
@@ -211,11 +220,13 @@ protected:
 	buffer<Mat> send_q_mat;
 	buffer<sample> send_q_sample;
 	buffer<login_mes> send_q_login_mes;
+	buffer<std::string> send_q_vedio_name;
 
     //接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
 	buffer<Mat> recv_q_mat;
 	buffer<sample> recv_q_sample;
 	buffer<login_mes> recv_q_login_mes;
+	buffer<std::string> recv_vedio_name;
 private:
 
     // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
@@ -270,9 +281,12 @@ private:
 	void s_recv();
 
 	//具体通信方法，实现子对象与客户端通信
-    void s_send_base(int datatype, const char *data, int size,int send_tag);
+	void s_send_base(char datatype, const char *data, DWORD size, char send_tag, char pnum = 0);
     template<class T> void s_senddata(T src, socket_id tid);
-    template<class T> T s_recvdata(char *data, int length);
+	template<> void s_senddata<Mat>(Mat src, socket_id tid);
+	template<> void s_senddata<std::string>(std::string src, socket_id tid);
+    template<class T> T s_recvdata(char *data, DWORD length);
+	template<> Mat s_recvdata<Mat>(char *data, DWORD length);
 
     friend void* server_dataexchange(void *soc);
     friend void* server_listen(void *soc);
@@ -281,12 +295,6 @@ private:
     friend void* listencallback_recv(void *soc);
     friend void* client_heart(void *soc);
 };
-
-template<>
-void socket_connect::s_senddata<Mat>(Mat src, socket_id tid);
-
-template<>
-Mat socket_connect::s_recvdata<Mat>(char *data, int length);
 
 /*
 	各数据类型以及对应标识
