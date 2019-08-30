@@ -41,6 +41,7 @@
 #include <utility>
 #include <memory>
 
+typedef unsigned long int DWORD;
 #define _close(x) close(x)
 #define _SOCKET int
 #define _SOCKADDR_IN sockaddr_in
@@ -283,10 +284,7 @@ private:
 	//具体通信方法，实现子对象与客户端通信
 	void s_send_base(char datatype, const char *data, DWORD size, char send_tag, char pnum = 0);
     template<class T> void s_senddata(T src, socket_id tid);
-	template<> void s_senddata<Mat>(Mat src, socket_id tid);
-	template<> void s_senddata<std::string>(std::string src, socket_id tid);
     template<class T> T s_recvdata(char *data, DWORD length);
-	template<> Mat s_recvdata<Mat>(char *data, DWORD length);
 
     friend void* server_dataexchange(void *soc);
     friend void* server_listen(void *soc);
@@ -295,6 +293,9 @@ private:
     friend void* listencallback_recv(void *soc);
     friend void* client_heart(void *soc);
 };
+template<> void socket_connect::s_senddata<Mat>(Mat src, socket_id tid);
+template<> void socket_connect::s_senddata<std::string>(std::string src, socket_id tid);
+template<> Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length);
 
 /*
 	各数据类型以及对应标识
