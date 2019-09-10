@@ -135,6 +135,12 @@ struct state_mes
 	int32_t hour = 0;		//故障时间：时
 	int32_t min = 0;		//故障时间：分
 	int32_t sec = 0;		//故障时间：秒
+
+    std::string tostring()
+    {
+        return std::to_string(year)+"_"+std::to_string(mon)+"_"+std::to_string(day)+"_"+ \
+                std::to_string(hour)+"_"+std::to_string(min)+"_"+std::to_string(sec);
+    }
 };
 
 template<typename T>
@@ -168,6 +174,7 @@ public:
 		return data.front();
 	}
 private:
+    // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
 	std::queue<std::pair<std::pair<int, int>, T>> data;
 	int length;
 	
@@ -202,6 +209,11 @@ public:
     }
     //登录,设定用户类型
     virtual int login(std::string user, std::string pass);
+    //设置data保存的目录
+    void setbasefile(std::string f)
+    {
+        basefile=f;
+    }
 
 	//######外部接口#########
 	//发送数据，将数据压入发送队列
@@ -209,6 +221,7 @@ public:
 	void send_buff_push(Mat image, int tid);
 	void send_buff_push(sample src, int tid);
     void send_buff_push(login_mes src, int tid = 1);
+    void send_buff_push(state_mes src, int tid = 1);
 	void send_buff_push(std::string src, int tid);
 	//接收数据，将数据弹出接收队列
 	bool recv_buff_pop(Mat &output, int &tid);
@@ -217,20 +230,20 @@ public:
 
 
 protected:
-    //发送缓冲区(主对象 or 子对象),	socketid==threadid时 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
+    //发送缓冲区(主对象 or 子对象),	socketid==2 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
 	buffer<Mat> send_q_mat;
 	buffer<sample> send_q_sample;
-	buffer<login_mes> send_q_login_mes;
+    buffer<login_mes> send_q_login_mes;
+    buffer<state_mes> send_q_state_mes;
 	buffer<std::string> send_q_vedio_name;
 
     //接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
 	buffer<Mat> recv_q_mat;
 	buffer<sample> recv_q_sample;
 	buffer<login_mes> recv_q_login_mes;
+    buffer<state_mes> recv_q_state_mes;
 	buffer<std::string> recv_vedio_name;
 private:
-
-    // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
     int mysocket;
     socket_id children_id = 10;
 	bool ismain;									// false:子对象（or客户端）  true:主对象
@@ -238,6 +251,7 @@ private:
 	std::shared_ptr<bool> d_flag;
 	std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
     std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
+    std::string basefile;
 
     socket_connect(int s)	//自动创建socket子对象
 	{
