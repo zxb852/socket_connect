@@ -335,11 +335,11 @@ void socket_connect::s_recv()
 
 			int intmode = mode[0];
 			
-			DWORD la = 0X00FFFFFF | (length[3] << 24);
-			DWORD lb = 0XFF00FFFF | (length[2] << 16);
-			DWORD lc = 0XFFFF00FF | (length[1] << 8);
-			DWORD ld = 0XFFFFFF00 | length[0];
-			DWORD intlength= la&lb&lc&ld;
+            DWORD2 la = 0X00FFFFFF | (length[3] << 24);
+            DWORD2 lb = 0XFF00FFFF | (length[2] << 16);
+            DWORD2 lc = 0XFFFF00FF | (length[1] << 8);
+            DWORD2 ld = 0XFFFFFF00 | length[0];
+            DWORD2 intlength= la&lb&lc&ld;
 
 			int inttag = tag[0];
 
@@ -406,7 +406,7 @@ void socket_connect::s_recv()
 	}
 }
 
-void socket_connect::s_send_base(char datatype, const char *data, DWORD size,char send_tag,char pnum)
+void socket_connect::s_send_base(char datatype, const char *data, DWORD2 size,char send_tag,char pnum)
 {
 	char send_char[100000] = { 0 };
 	
@@ -419,7 +419,7 @@ void socket_connect::s_send_base(char datatype, const char *data, DWORD size,cha
 
 	char csize[4];
 	memset(csize, 0, sizeof(csize));
-	memcpy(csize, &size, sizeof(DWORD));
+    memcpy(csize, &size, sizeof(DWORD2));
 	std::string cmd = std::string(csize);
 	reverse(cmd.begin(), cmd.end());
 
@@ -480,7 +480,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
 
 	infile.seekg(0, std::ios::end);
 	//std::cout << infile.tellg() << std::endl;
-	DWORD length = infile.tellg();
+    DWORD2 length = infile.tellg();
 	infile.seekg(0, std::ios::beg);
 	bei = length / 10000;
 	yue = length % 10000;
@@ -497,7 +497,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
 	infile.close();
 }
 
-template<class T> T socket_connect::s_recvdata(char *data, DWORD length)
+template<class T> T socket_connect::s_recvdata(char *data, DWORD2 length)
 {
     T result;
     T *p = reinterpret_cast<T *>(malloc(length));
@@ -508,7 +508,7 @@ template<class T> T socket_connect::s_recvdata(char *data, DWORD length)
 }
 
 template<>
-Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length)
+Mat socket_connect::s_recvdata<Mat>(char *data, DWORD2 length)
 {
     //std::cout << "recv mat" << std::endl;
     Mat result;
