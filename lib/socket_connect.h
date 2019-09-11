@@ -15,6 +15,7 @@
 #include<memory>
 #pragma comment(lib,"ws2_32.lib")
 
+typedef unsigned long int DWORD;
 #define _close(x) closesocket(x)
 #define _SOCKET SOCKET
 #define _SOCKADDR_IN SOCKADDR_IN
@@ -41,7 +42,7 @@
 #include <utility>
 #include <memory>
 
-typedef unsigned long int DWORD2;
+typedef unsigned int DWORD;
 #define _close(x) close(x)
 #define _SOCKET int
 #define _SOCKADDR_IN sockaddr_in
@@ -141,6 +142,21 @@ struct state_mes
         return std::to_string(year)+"_"+std::to_string(mon)+"_"+std::to_string(day)+"_"+ \
                 std::to_string(hour)+"_"+std::to_string(min)+"_"+std::to_string(sec);
     }
+    void settime_now()
+    {
+        //获取时间
+        time_t timep;
+        time(&timep);
+        struct tm *nowTime =localtime(&timep);
+        nowTime->tm_year += 1900;
+        nowTime->tm_mon += 1;
+        year=nowTime->tm_year;
+        mon =nowTime->tm_mon;
+        day=nowTime->tm_mday;
+        hour=nowTime->tm_hour;
+        min=nowTime->tm_min;
+        sec=nowTime->tm_sec;
+    }
 };
 
 template<typename T>
@@ -218,14 +234,14 @@ public:
 	//######外部接口#########
 	//发送数据，将数据压入发送队列
 	//当tid==emptyid时，由客户端向服务器发送；当tid==threadid或者tid==具体id时，由服务器向客户端发送。
-	void send_buff_push(Mat image, int tid);
-	void send_buff_push(sample src, int tid);
-    void send_buff_push(login_mes src, int tid = 1);
-    void send_buff_push(state_mes src, int tid = 1);
-	void send_buff_push(std::string src, int tid);
+    void send_buff_push(Mat image, char tid);
+    void send_buff_push(sample src, char tid);
+    void send_buff_push(login_mes src, char tid = 1);
+    void send_buff_push(state_mes src, char tid = 1);
+    void send_buff_push(std::string src, char tid);
 	//接收数据，将数据弹出接收队列
-	bool recv_buff_pop(Mat &output, int &tid);
-	bool recv_buff_pop(sample &output, int &tid);
+    bool recv_buff_pop(Mat &output, char &tid);
+    bool recv_buff_pop(sample &output, char &tid);
 	//########################
 
 
@@ -296,9 +312,9 @@ private:
 	void s_recv();
 
 	//具体通信方法，实现子对象与客户端通信
-    void s_send_base(char datatype, const char *data, DWORD2 size, char send_tag, char pnum = 0);
+    void s_send_base(char datatype, const char *data, DWORD size, char send_tag, char pnum = 0);
     template<class T> void s_senddata(T src, socket_id tid);
-    template<class T> T s_recvdata(char *data, DWORD2 length);
+    template<class T> T s_recvdata(char *data, DWORD length);
 
     friend void* server_dataexchange(void *soc);
     friend void* server_listen(void *soc);
@@ -309,7 +325,7 @@ private:
 };
 template<> void socket_connect::s_senddata<Mat>(Mat src, socket_id tid);
 template<> void socket_connect::s_senddata<std::string>(std::string src, socket_id tid);
-template<> Mat socket_connect::s_recvdata<Mat>(char *data, DWORD2 length);
+template<> Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length);
 
 /*
 	各数据类型以及对应标识

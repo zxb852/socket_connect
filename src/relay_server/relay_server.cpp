@@ -10,6 +10,17 @@ void relay_server::relaydata()
         send_q_mat.push(recv_q_mat.front());
         recv_q_mat.pop();
     }
+    if (!recv_q_state_mes.empty())
+    {
+        send_q_state_mes.push(recv_q_state_mes.front());
+        recv_q_state_mes.pop();
+    }
+    if (!recv_vedio_name.empty())
+    {
+        send_q_vedio_name
+                .push(recv_vedio_name.front());
+        recv_vedio_name.pop();
+    }
     io_mutex.unlock();
 }
 

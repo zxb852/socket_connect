@@ -6,12 +6,12 @@ class server : public socket_connect
 public:
 	server()
     {
-		//socketinit();
 	}
 	~server()
 	{
 		disconnect();
-		//socketclose();
 	}
+
+    void send_decinf(state_mes mes,Mat rgb,Mat ir, Mat uv, std::string vedio_name);
 
 };

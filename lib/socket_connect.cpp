@@ -255,37 +255,37 @@ bool socket_connect::s_connect(const char *ip, int port)
     return true;
 }
 
-void socket_connect::send_buff_push(Mat image, int tid)
+void socket_connect::send_buff_push(Mat image, char tid)
 {
     mymutex m;
     send_q_mat.push(std::pair<data_head, Mat>(data_head(tid, 0), image));
 }
 
-void socket_connect::send_buff_push(sample src, int tid)
+void socket_connect::send_buff_push(sample src, char tid)
 {
     mymutex m;
     send_q_sample.push(std::pair<data_head, sample>(data_head(tid, 0), src));
 }
 
-void socket_connect::send_buff_push(login_mes src, int tid)
+void socket_connect::send_buff_push(login_mes src, char tid)
 {
     mymutex m;
     send_q_login_mes.push(std::pair<data_head, login_mes>(data_head(tid, 0), src));
 }
 
-void socket_connect::send_buff_push(state_mes src, int tid)
+void socket_connect::send_buff_push(state_mes src, char tid)
 {
     mymutex m;
     send_q_state_mes.push(std::pair<data_head, state_mes>(data_head(tid, 0), src));
 }
 
-void socket_connect::send_buff_push(std::string src, int tid)
+void socket_connect::send_buff_push(std::string src, char tid)
 {
     mymutex m;
     send_q_vedio_name.push(std::pair<data_head, std::string>(data_head(tid, 0), src));
 }
 
-bool socket_connect::recv_buff_pop(Mat & output, int &tid)
+bool socket_connect::recv_buff_pop(Mat & output, char &tid)
 {
     mymutex m;
     if (!recv_q_mat.empty())
@@ -299,7 +299,7 @@ bool socket_connect::recv_buff_pop(Mat & output, int &tid)
     return false;
 }
 
-bool socket_connect::recv_buff_pop(sample & output, int &tid)
+bool socket_connect::recv_buff_pop(sample & output, char &tid)
 {
     mymutex m;
     if (!recv_q_sample.empty())
@@ -342,6 +342,11 @@ void socket_connect::s_send()
         {
             s_senddata(send_q_login_mes.front().second, send_q_login_mes.front().first.first);
             send_q_login_mes.pop();
+        }
+        if (!send_q_state_mes.empty())
+        {
+            s_senddata(send_q_state_mes.front().second, send_q_state_mes.front().first.first);
+            send_q_state_mes.pop();
         }
         if (!send_q_vedio_name.empty())
         {
@@ -386,11 +391,11 @@ void socket_connect::s_recv()
 
             int intmode = mode[0];
 
-            DWORD2 la = 0X00FFFFFF | (length[3] << 24);
-            DWORD2 lb = 0XFF00FFFF | (length[2] << 16);
-            DWORD2 lc = 0XFFFF00FF | (length[1] << 8);
-            DWORD2 ld = 0XFFFFFF00 | length[0];
-            DWORD2 intlength= la&lb&lc&ld;
+            DWORD la = 0X00FFFFFF | (length[3] << 24);
+            DWORD lb = 0XFF00FFFF | (length[2] << 16);
+            DWORD lc = 0XFFFF00FF | (length[1] << 8);
+            DWORD ld = 0XFFFFFF00 | length[0];
+            DWORD intlength= la&lb&lc&ld;
 
             int inttag = tag[0];
 
@@ -407,17 +412,21 @@ void socket_connect::s_recv()
                 //视频结束标志 -1
                 if(intpnum == -1)
                 {
+                    std::cout<<"recv 5 -1"<<std::endl;
                     outfile.close();
                     recv_vedio_name.push(std::pair<data_head, std::string>(data_head(0, 2), basefile+filename+"/"+filename+"_vedio"+".avi"));
                 }
                 //故障信息
                 else if(intpnum==-2)
                 {
+                    std::cout<<"recv 5 -2"<<std::endl;
                     state_mes mes=s_recvdata<state_mes>(data, intlength);
                     recv_q_state_mes.push(std::pair<data_head, state_mes>(data_head(0, inttag), mes));
 
+                    filename=mes.tostring();
                     std::string folderPath = basefile+filename;
                     std::string command;
+                    std::cout<<folderPath<<std::endl;
                     command = "mkdir -p " + folderPath;
                     system(command.c_str());
                 }
@@ -445,15 +454,13 @@ void socket_connect::s_recv()
                 }
                 else if (intpnum == 1)
                 {
-
+                    std::cout<<"recv 5 1"<<std::endl;
                     //打开文件
                     outfile.open(basefile+filename+"/"+filename+"_vedio"+".avi", std::ios_base::binary);
-                    //recv(mysocket, data, intlength, 0);
                     outfile.write(data, intlength);
                 }
                 else
                 {
-                    //recv(mysocket, data, intlength, 0);
                     outfile.write(data, intlength);
                 }
             }
@@ -478,22 +485,21 @@ void socket_connect::s_recv()
     }
 }
 
-void socket_connect::s_send_base(char datatype, const char *data, DWORD2 size,char send_tag,char pnum)
+void socket_connect::s_send_base(char datatype, const char *data, DWORD size,char send_tag,char pnum)
 {
     char send_char[100000] = { 0 };
 
-    //std::cout << data_encode.size() << std::endl;
-    //std::cout << "sending message......" << std::endl;
-    //std::cout << "len:" << size << std::endl;
-    //std::cout << "tag:" << send_tag << std::endl;
+//    std::cout << data_encode.size() << std::endl;
+//    std::cout << "sending message......" << std::endl;
+//    std::cout << "len:" << size << std::endl;
+//    std::cout << "tag:" << (int)send_tag << std::endl;
+
 
     send_char[0] = datatype;
 
     char csize[4];
     memset(csize, 0, sizeof(csize));
-    memcpy(csize, &size, sizeof(DWORD2));
-    std::string cmd = std::string(csize);
-    reverse(cmd.begin(), cmd.end());
+    memcpy(csize, &size, sizeof(DWORD));
 
     for (int i = 1; i < 5 ; ++i)
         send_char[i] = csize[i - 1];
@@ -536,8 +542,8 @@ void socket_connect::s_senddata(T src, socket_id tid)
 template<>
 void socket_connect::s_senddata<Mat>(Mat src, socket_id tid)
 {
-    int mode=1;
-    int pum=0;
+    char mode=1;
+    char pum=0;
     if(tid==51)
     {
         mode=5;
@@ -575,7 +581,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
 
     infile.seekg(0, std::ios::end);
     //std::cout << infile.tellg() << std::endl;
-    DWORD2 length = infile.tellg();
+    DWORD length = infile.tellg();
     infile.seekg(0, std::ios::beg);
     bei = length / 10000;
     yue = length % 10000;
@@ -592,7 +598,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
     infile.close();
 }
 
-template<class T> T socket_connect::s_recvdata(char *data, DWORD2 length)
+template<class T> T socket_connect::s_recvdata(char *data, DWORD length)
 {
     T result;
     T *p = reinterpret_cast<T *>(malloc(length));
@@ -603,7 +609,7 @@ template<class T> T socket_connect::s_recvdata(char *data, DWORD2 length)
 }
 
 template<>
-Mat socket_connect::s_recvdata<Mat>(char *data, DWORD2 length)
+Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length)
 {
     //std::cout << "recv mat" << std::endl;
     Mat result;

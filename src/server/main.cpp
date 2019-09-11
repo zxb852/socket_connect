@@ -11,31 +11,12 @@ int main()
     s_server.s_connect("127.0.0.1", 8010);
     s_server.send_buff_push(login_mes("server", "123456"));
 
-    //s_server.setbasefile("/home/zxb/SRC_C/");
+
     state_mes mes;
-    //获取时间
-//    time_t timep;
-//    time(&timep);
-//    struct tm *nowTime =localtime(&timep);
-//    nowTime->tm_year += 1900;
-//    nowTime->tm_mon += 1;
-//    mes.year=nowTime->tm_year;
-//    mes.mon =nowTime->tm_mon;
-//    mes.day=nowTime->tm_mday;
-//    mes.hour=nowTime->tm_hour;
-//    mes.min=nowTime->tm_min;
-//    mes.sec=nowTime->tm_sec;
+    mes.settime_now();
+    Mat test=imread("test.jpg");
+    s_server.send_decinf(mes,test,test,test,"good.avi");
 
-        mes.year=2019;
-        mes.mon =9;
-        mes.day=7;
-        mes.hour=11;
-        mes.min=18;
-        mes.sec=52;
-
-    //s_server.send_buff_push(mes, 1);
-    //usleep(5000);
-    //s_server.send_buff_push("good.avi", 1);
 
 	getchar();
 

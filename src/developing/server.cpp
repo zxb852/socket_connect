@@ -8,7 +8,7 @@ int main()
 	socketinit();
 	socket_connect s_server;
 	s_server.server_init("127.0.0.2", 8010);
-	int tid;
+    char tid;
 	Mat src;
 	sample test_sample;
 	while (1)
