@@ -1,4 +1,6 @@
 #include "socket_connect.h"
+#include <sys/stat.h>
+#include <dirent.h>
 std::mutex io_mutex;
 std::vector<uchar> data_encode;
 std::ofstream outfile;
@@ -19,6 +21,34 @@ void socketclose()
 #endif // Windows
 }
 
+void getFiles(const char* path, vector<string>& files)
+{
+
+    const string path0 = path;
+    DIR* pDir;
+    struct dirent* ptr;
+
+    struct stat s;
+    lstat(path, &s);
+
+    if(!S_ISDIR(s.st_mode)){
+        return;
+    }
+
+    pDir = opendir(path);
+    int i = 0;
+    string subFile;
+    while((ptr = readdir(pDir)) != 0){
+        subFile = ptr -> d_name;
+        if(subFile == "." || subFile == "..")
+            continue;
+        subFile = subFile;
+        files.push_back(subFile);
+    }
+    closedir(pDir);
+
+}
+
 void socket_connect::updatesendbuff()
 {
     mymutex m;
@@ -31,37 +61,32 @@ void socket_connect::updatesendbuff()
             if (!send_q_mat.empty())
             {
                 //0: 初始化  1: 服务器 2: 管理员  3: 普通用户
-                if (childrenctrl[i.first] == 1)
-                    std::cout << "admin" << std::endl;
-                //childsocket->send_q_mat.push(send_q_mat.front());
-                else
-                {
-                    std::cout << "client" << std::endl;
+                if (childrenctrl[i.first] == 1);//std::cout << "admin" << std::endl;
+                else{
                     childsocket->send_q_mat.push(send_q_mat.front());
                 }
             }
             if (!send_q_state_mes.empty())
             {
+                auto step=send_q_state_mes.front();
                 //0: 初始化  1: 服务器 2: 管理员  3: 普通用户
-                if (childrenctrl[i.first] == 1)
-                    std::cout << "admin" << std::endl;
-                //childsocket->send_q_mat.push(send_q_mat.front());
-                else
-                {
-                    std::cout << "client" << std::endl;
-                    childsocket->send_q_state_mes.push(send_q_state_mes.front());
+                if (childrenctrl[i.first] == 1&&step.first.second==1){
+                    childsocket->send_q_state_mes.push(step);
                 }
+                else if(step.first.second==3 || step.first.second==i.first){
+                    childsocket->send_q_state_mes.push(step);
+                }
+
             }
             if (!send_q_vedio_name.empty())
             {
+                auto step=send_q_vedio_name.front();
+                std::cout<<"tag"<<step.first.second<<"  name "<<step.second;
                 //0: 初始化  1: 服务器 2: 管理员  3: 普通用户
-                if (childrenctrl[i.first] == 1)
-                    std::cout << "admin" << std::endl;
-                //childsocket->send_q_mat.push(send_q_mat.front());
-                else
-                {
-                    std::cout << "client" << std::endl;
-                    childsocket->send_q_vedio_name.push(send_q_vedio_name.front());
+                if (childrenctrl[i.first] == 1);
+                else if(step.first.second==3 || step.first.second==i.first){
+                    cout<<"vedio send";
+                    childsocket->send_q_vedio_name.push(step);
                 }
             }
             if (!send_q_sample.empty())
@@ -312,6 +337,19 @@ bool socket_connect::recv_buff_pop(sample & output, char &tid)
     }
     return false;
 }
+bool socket_connect::recv_buff_pop(state_mes &output, char &tid)
+{
+    mymutex m;
+    if (!recv_q_state_mes.empty())
+    {
+        auto &step = recv_q_state_mes.front();
+        tid = step.first.second;
+        output = step.second;
+        recv_q_state_mes.pop();
+        return true;
+    }
+    return false;
+}
 
 int socket_connect::login(std::string user, std::string pass)
 {
@@ -357,6 +395,8 @@ void socket_connect::s_send()
 }
 
 std::string filename;
+int tmp=0;
+bool ismode5=false;
 void socket_connect::s_recv()
 {
     if (ismain)
@@ -412,53 +452,102 @@ void socket_connect::s_recv()
                 //视频结束标志 -1
                 if(intpnum == -1)
                 {
-                    std::cout<<"recv 5 -1"<<std::endl;
+                    std::cout<<"recv end <<<<<<<<<<<<<"<<std::endl;
                     outfile.close();
-                    recv_vedio_name.push(std::pair<data_head, std::string>(data_head(0, 2), basefile+filename+"/"+filename+"_vedio"+".avi"));
+                    if(isgen)
+                        recv_vedio_name.push(std::pair<data_head, std::string>(data_head(0, inttag), filename));
+                    else
+                        recv_vedio_name.push(std::pair<data_head, std::string>(data_head(0, inttag), basefile+filename+"/"+filename+"_vedio.mp4"));
+                    ismode5=false;
                 }
                 //故障信息
                 else if(intpnum==-2)
                 {
-                    std::cout<<"recv 5 -2"<<std::endl;
                     state_mes mes=s_recvdata<state_mes>(data, intlength);
-                    recv_q_state_mes.push(std::pair<data_head, state_mes>(data_head(0, inttag), mes));
-
-                    filename=mes.tostring();
-                    std::string folderPath = basefile+filename;
-                    std::string command;
-                    std::cout<<folderPath<<std::endl;
-                    command = "mkdir -p " + folderPath;
-                    system(command.c_str());
+                    if(isgen)
+                        recv_q_state_mes.push(std::pair<data_head, state_mes>(data_head(0, inttag), mes));
+                    else {
+                        if(mes.mode==11)
+                        {
+                            std::cout<<"recv updata_alarm from "<<inttag<<std::endl;
+                            alarm_data.first=inttag;
+                        }
+                        else if(mes.mode==12)
+                        {
+                            std::cout<<"recv "<<mes.tostring()<<inttag<<std::endl;
+                            alarm_data.second.push_back(mes.tostring());
+                        }
+                        else if(mes.mode==13)
+                        {
+                            std::cout<<"end updata_alarm  "<<inttag<<std::endl;
+                            update_alarm_data(alarm_data);
+                            alarm_data.first=0;
+                            alarm_data.second.clear();
+                        }
+                        else {
+                            std::cout<<"recv bigin >>>>>>>>>>>"<<std::endl;
+                            std::cout<<"recv state_mes from "<<inttag<<std::endl;
+                            recv_q_state_mes.push(std::pair<data_head, state_mes>(data_head(0, inttag), mes));
+                            filename=mes.tostring();
+                            std::string folderPath = basefile+filename;
+                            std::string command;
+                            command = "mkdir -p " + folderPath;
+                            system(command.c_str());
+                            ismode5=true;
+                        }
+                    }
                 }
                 //故障rgb图像
-                if(intpnum==-3)
+                else if(intpnum==-3)
                 {
+                    std::cout<<"recv rgb from "<<inttag<<std::endl;
                     Mat mat=s_recvdata<Mat>(data, intlength);
-                    recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
-                    imwrite(basefile+filename+"/"+filename+"_rgb"+".jpg",mat);
-
+                    if(isgen)
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                    else if(ismode5){
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                        imwrite(basefile+filename+"/"+filename+"_rgb.jpg",mat);
+                    }
                 }
                 //故障红外图像
-                if(intpnum==-4)
+                else if(intpnum==-4)
                 {
+                    std::cout<<"recv ir from "<<inttag<<std::endl;
                     Mat mat=s_recvdata<Mat>(data, intlength);
-                    recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
-                    imwrite(basefile+filename+"/"+filename+"_ir"+".jpg",mat);
+                    if(isgen)
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                    else if(ismode5){
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                        imwrite(basefile+filename+"/"+filename+"_ir.jpg",mat);
+                    }
                 }
                 //故障紫外图像
-                if(intpnum==-5)
+                else if(intpnum==-5)
                 {
+                    std::cout<<"recv uv from "<<inttag<<std::endl;
                     Mat mat=s_recvdata<Mat>(data, intlength);
-                    recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
-                    imwrite(basefile+filename+"/"+filename+"_uv"+".jpg",mat);
+                    if(isgen)
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                    else if(ismode5){
+                        recv_q_mat.push(std::pair<data_head, Mat>(data_head(0, inttag), mat));
+                        imwrite(basefile+filename+"/"+filename+"_uv.jpg",mat);
+                    }
                 }
+                //故障视频开始
                 else if (intpnum == 1)
                 {
-                    std::cout<<"recv 5 1"<<std::endl;
-                    //打开文件
-                    outfile.open(basefile+filename+"/"+filename+"_vedio"+".avi", std::ios_base::binary);
-                    outfile.write(data, intlength);
+                    std::cout<<"recv vedio from "<<inttag<<std::endl;
+                    if(isgen){
+                        filename=string("tmp/vedio")+to_string(tmp++)+".mp4";
+                        outfile.open(filename, std::ios_base::binary|std::ios::trunc);
+                        outfile.write(data, intlength);
+                    }
+                    else{
+                        outfile.open(basefile+filename+"/"+filename+"_vedio.mp4", std::ios_base::binary|std::ios::trunc);
+                        outfile.write(data, intlength);
+                    }
                 }
+                //故障视频片段
                 else
                 {
                     outfile.write(data, intlength);
@@ -489,10 +578,10 @@ void socket_connect::s_send_base(char datatype, const char *data, DWORD size,cha
 {
     char send_char[100000] = { 0 };
 
-//    std::cout << data_encode.size() << std::endl;
-//    std::cout << "sending message......" << std::endl;
-//    std::cout << "len:" << size << std::endl;
-//    std::cout << "tag:" << (int)send_tag << std::endl;
+    //    std::cout << data_encode.size() << std::endl;
+    //    std::cout << "sending message......" << std::endl;
+    //    std::cout << "len:" << size << std::endl;
+    //    std::cout << "tag:" << (int)send_tag << std::endl;
 
 
     send_char[0] = datatype;
@@ -575,7 +664,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
     char buf[10000];
     int bei = 0, yue = 0;
     std::ifstream infile;
-    std::cout<< src << std::endl;
+    //std::cout<< src << std::endl;
     infile.open(src, std::ios_base::binary);
     if (!infile.is_open()) return;
 
@@ -594,7 +683,7 @@ void socket_connect::s_senddata(std::string src, socket_id tid)
     }
     infile.read(buf, yue);
     s_send_base(mode, buf, yue, tid, ++pnum);
-    s_send_base(mode, nullptr, 0, 0, -1);
+    s_send_base(mode, nullptr, 0, tid, -1);
     infile.close();
 }
 

@@ -12,6 +12,7 @@
 #include <map>
 #include <queue>
 #include <utility>
+#include <fstream>
 #include<memory>
 #pragma comment(lib,"ws2_32.lib")
 
@@ -41,6 +42,7 @@ typedef unsigned long int DWORD;
 #include <queue>
 #include <utility>
 #include <memory>
+#include <fstream>
 
 typedef unsigned int DWORD;
 #define _close(x) close(x)
@@ -56,6 +58,11 @@ typedef unsigned int DWORD;
 
 
 //using namespace std;
+using std::string;
+using std::vector;
+using std::to_string;
+using std::cout;
+using std::endl;
 using namespace cv;
 
 
@@ -72,6 +79,7 @@ void* client_heart(void *soc);
 
 void socketinit();
 void socketclose();
+void getFiles(const char* path, vector<string>& files);
 
 class mymutex
 {
@@ -89,36 +97,36 @@ public:
 
 struct sample
 {
-	int a=0;
-	char b[21] = {0};
-	double c=0;
-	
-	sample() = default;
+    int a=0;
+    char b[21] = {0};
+    double c=0;
 
-	sample(int ia, std::string ib, double ic) :a(ia), c(ic)
-	{
+    sample() = default;
+
+    sample(int ia, std::string ib, double ic) :a(ia), c(ic)
+    {
         int strlen = ib.length();
-		for (int i = 0;i<std::min(strlen,20);i++)
+        for (int i = 0;i<std::min(strlen,20);i++)
             b[i] = ib[i];
-	}
+    }
 };
 
 struct login_mes
 {
-	char username[21] = { 0 };
-	char password[21] = { 0 };
-	char confirm = 0;
-	login_mes() = default;
-	login_mes(std::string iusername, std::string ipassword)
-	{
-		int strlen = iusername.length();
-		for (int i = 0;i<std::min(strlen, 20);i++)
-			username[i] = iusername[i];
-		strlen = ipassword.length();
-		for (int i = 0;i<std::min(strlen, 20);i++)
-			password[i] = ipassword[i];
+    char username[21] = { 0 };
+    char password[21] = { 0 };
+    char confirm = 0;
+    login_mes() = default;
+    login_mes(std::string iusername, std::string ipassword)
+    {
+        int strlen = iusername.length();
+        for (int i = 0;i<std::min(strlen, 20);i++)
+            username[i] = iusername[i];
+        strlen = ipassword.length();
+        for (int i = 0;i<std::min(strlen, 20);i++)
+            password[i] = ipassword[i];
 
-	}
+    }
 };
 
 struct device_change
@@ -128,19 +136,44 @@ struct device_change
 
 struct state_mes
 {
-	char mode = 0;			//故障类型
-	int32_t dev = 0;		//故障设备编号
-	int32_t year = 0;		//故障时间：年
-	int32_t mon = 0;		//故障时间：月
-	int32_t day = 0;		//故障时间：日
-	int32_t hour = 0;		//故障时间：时
-	int32_t min = 0;		//故障时间：分
-	int32_t sec = 0;		//故障时间：秒
+    char mode = 0;              //故障类型
+    int32_t dev = 0;		//故障设备编号
+    int32_t year = 0;		//故障时间：年
+    int32_t mon = 0;		//故障时间：月
+    int32_t day = 0;		//故障时间：日
+    int32_t hour = 0;		//故障时间：时
+    int32_t min = 0;		//故障时间：分
+    int32_t sec = 0;		//故障时间：秒
 
-    std::string tostring()
+    string tostring() const
     {
-        return std::to_string(year)+"_"+std::to_string(mon)+"_"+std::to_string(day)+"_"+ \
-                std::to_string(hour)+"_"+std::to_string(min)+"_"+std::to_string(sec);
+        return to_string(year)+"_"+to_string(mon)+"_"+to_string(day)+"_"+ \
+                to_string(hour)+"_"+to_string(min)+"_"+to_string(sec);
+    }
+    void fromstring(string str_date)
+    {
+        vector<string> sv;
+        std::istringstream iss(str_date);
+        string temp;
+
+        while (getline(iss, temp,'_'))
+            sv.push_back(temp);
+        if(sv.size()==6)
+        {
+            sec=std::stoi(sv.back());
+            sv.pop_back();
+            min=std::stoi(sv.back());
+            sv.pop_back();
+            hour=std::stoi(sv.back());
+            sv.pop_back();
+            day=std::stoi(sv.back());
+            sv.pop_back();
+            mon=std::stoi(sv.back());
+            sv.pop_back();
+            year=std::stoi(sv.back());
+            sv.pop_back();
+        }
+
     }
     void settime_now()
     {
@@ -157,43 +190,55 @@ struct state_mes
         min=nowTime->tm_min;
         sec=nowTime->tm_sec;
     }
+    void save(std::string filename) const
+    {
+        std::ofstream outFile;
+        outFile.open(filename);
+        outFile<<(int)mode<<"    "<<dev<<"    "<<year<<"    "<<mon<<"    "<<day<<"    "<<hour<<"    "<<min<<"    "<<sec;
+    }
+    void getfromfile(std::string filename)
+    {
+        std::ifstream inFile;
+        inFile.open(filename);
+        inFile>>mode>>dev>>year>>mon>>day>>hour>>min>>sec;
+    }
 };
 
 template<typename T>
 class buffer
 {
 public:
-	buffer(int l=100)
-	{
-		length = l;
-	}
-	bool empty()
-	{
-		return data.empty();
-	}
-	void push(const std::pair<std::pair<int, int>, T> &element)
-	{
-		if (data.size() < length)
-			data.push(element);
-		else
-		{
-			data.pop();
-			data.push(element);
-		}
-	}
-	void pop()
-	{
-		data.pop();
-	}
-	std::pair<std::pair<int, int>, T>& front()
-	{
-		return data.front();
-	}
+    buffer(int l=100)
+    {
+        length = l;
+    }
+    bool empty()
+    {
+        return data.empty();
+    }
+    void push(const std::pair<std::pair<int, int>, T> &element)
+    {
+        if (data.size() < length)
+            data.push(element);
+        else
+        {
+            data.pop();
+            data.push(element);
+        }
+    }
+    void pop()
+    {
+        data.pop();
+    }
+    std::pair<std::pair<char, char>, T>& front()
+    {
+        return data.front();
+    }
 private:
     // 在中转服务器中两个int：from first to two。 1：服务器 2：所有客户端广播 >10某个具体的连接对象
-	std::queue<std::pair<std::pair<int, int>, T>> data;
-	int length;
-	
+    std::queue<std::pair<std::pair<char, char>, T>> data;
+    int length;
+
 };
 
 class socket_connect
@@ -202,26 +247,26 @@ public:
     typedef char socket_id;
     typedef std::pair<int,int> data_head;
     socket_connect(): send_q_mat(20), recv_q_mat(20)     //手动创建socket主对象  or 创建客户端（相当于子对象）
-	{
-		mysocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		ismain = true;
-		heart_flag = true;
-		d_flag = std::make_shared<bool>(false);
-	}
+    {
+        mysocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        ismain = true;
+        heart_flag = true;
+        d_flag = std::make_shared<bool>(false);
+    }
     virtual ~socket_connect()	//析构函数，关闭本socket
-	{
-		*d_flag = true;
-		shutdown(mysocket, 2);
-		_close(mysocket);
-		for (auto i : children)
-			delete i.second;
-	}
-	void server_init(const char *ip, int port);
-	bool s_connect(const char *ip, int port);
+    {
+        *d_flag = true;
+        shutdown(mysocket, 2);
+        _close(mysocket);
+        for (auto i : children)
+            delete i.second;
+    }
+    void server_init(const char *ip, int port);
+    bool s_connect(const char *ip, int port);
     //断开连接,当对象为子对象时，断开与服务器的连接.
     void disconnect()
     {
-		s_send_base(-1, nullptr, 0, 0, 0);
+        s_send_base(-1, nullptr, 0, 0, 0);
     }
     //登录,设定用户类型
     virtual int login(std::string user, std::string pass);
@@ -231,87 +276,97 @@ public:
         basefile=f;
     }
 
-	//######外部接口#########
-	//发送数据，将数据压入发送队列
-	//当tid==emptyid时，由客户端向服务器发送；当tid==threadid或者tid==具体id时，由服务器向客户端发送。
+    //######外部接口#########
+    //发送数据，将数据压入发送队列
+    //当tid==emptyid时，由客户端向服务器发送；当tid==threadid或者tid==具体id时，由服务器向客户端发送。
     void send_buff_push(Mat image, char tid);
     void send_buff_push(sample src, char tid);
     void send_buff_push(login_mes src, char tid = 1);
     void send_buff_push(state_mes src, char tid = 1);
     void send_buff_push(std::string src, char tid);
-	//接收数据，将数据弹出接收队列
+    //接收数据，将数据弹出接收队列
     bool recv_buff_pop(Mat &output, char &tid);
     bool recv_buff_pop(sample &output, char &tid);
-	//########################
+    bool recv_buff_pop(state_mes &output, char &tid);
+    //########################
 
 
 protected:
     //发送缓冲区(主对象 or 子对象),	socketid==2 向所有客户端发送数据， 否则向socketid标识的客户端或主控服务器发送数据
-	buffer<Mat> send_q_mat;
-	buffer<sample> send_q_sample;
+    buffer<Mat> send_q_mat;
+    buffer<sample> send_q_sample;
     buffer<login_mes> send_q_login_mes;
     buffer<state_mes> send_q_state_mes;
-	buffer<std::string> send_q_vedio_name;
+    buffer<std::string> send_q_vedio_name;
 
     //接收缓冲区(主对象 or 子对象)，socketid标识着从哪个子线程获得的数据
-	buffer<Mat> recv_q_mat;
-	buffer<sample> recv_q_sample;
-	buffer<login_mes> recv_q_login_mes;
+    buffer<Mat> recv_q_mat;
+    buffer<sample> recv_q_sample;
+    buffer<login_mes> recv_q_login_mes;
     buffer<state_mes> recv_q_state_mes;
-	buffer<std::string> recv_vedio_name;
+    buffer<std::string> recv_vedio_name;
+
+    std::string basefile;
 private:
     int mysocket;
     socket_id children_id = 10;
-	bool ismain;									// false:子对象（or客户端）  true:主对象
-	bool heart_flag;								//心跳标志位，当==false时，代表对象已断开。
-	std::shared_ptr<bool> d_flag;
-	std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
+    bool ismain;									// false:子对象（or客户端）  true:主对象
+    bool isgen=false;
+    bool heart_flag;								//心跳标志位，当==false时，代表对象已断开。
+    std::shared_ptr<bool> d_flag;
+    std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
     std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
-    std::string basefile;
+
+    //server 更新client的alarm data
+    std::pair<socket_id,vector<string>> alarm_data;
+    virtual void update_alarm_data(std::pair<socket_id,vector<string>>)
+    {}
+
 
     socket_connect(int s)	//自动创建socket子对象
-	{
-		mysocket = s;
-		ismain = false;
-		heart_flag = true;
-		d_flag = std::make_shared<bool>(false);
-	}
+    {
+        mysocket = s;
+        ismain = false;
+        isgen=true;
+        heart_flag = true;
+        d_flag = std::make_shared<bool>(false);
+    }
 
-	//主对象控制方法，实现客户端与服务端连接，以及创建子对象（主对象）
-	bool s_bind(const char *ip, int port);
-	//尝试获取连接（accept）	用于监听连接请求线程
-	void s_listen();
-	//关闭child的Socket连接
-	void deletechild(socket_id child)
-	{
-		for (auto i = children.begin();i != children.end();i++)
-		{
-			if (i->first == child)
-			{
-				delete i->second;
-				children.erase(i);
-				break;
-			}
-		}
-		for (auto i = childrenctrl.begin();i != childrenctrl.end();i++)
-		{
-			if (i->first == child)
-			{
-				childrenctrl.erase(i);
-				break;
-			}
-		}
-	}
+    //主对象控制方法，实现客户端与服务端连接，以及创建子对象（主对象）
+    bool s_bind(const char *ip, int port);
+    //尝试获取连接（accept）	用于监听连接请求线程
+    void s_listen();
+    //关闭child的Socket连接
+    void deletechild(socket_id child)
+    {
+        for (auto i = children.begin();i != children.end();i++)
+        {
+            if (i->first == child)
+            {
+                delete i->second;
+                children.erase(i);
+                break;
+            }
+        }
+        for (auto i = childrenctrl.begin();i != childrenctrl.end();i++)
+        {
+            if (i->first == child)
+            {
+                childrenctrl.erase(i);
+                break;
+            }
+        }
+    }
 
-	//缓冲区管理方法(主对象)	用于数据交换线程
-	void updatesendbuff();
-	void updaterecvbuff();
+    //缓冲区管理方法(主对象)	用于数据交换线程
+    void updatesendbuff();
+    void updaterecvbuff();
 
-	//尝试发送和接收数据		用于子对象线程
-	void s_send();
-	void s_recv();
+    //尝试发送和接收数据		用于子对象线程
+    void s_send();
+    void s_recv();
 
-	//具体通信方法，实现子对象与客户端通信
+    //具体通信方法，实现子对象与客户端通信
     void s_send_base(char datatype, const char *data, DWORD size, char send_tag, char pnum = 0);
     template<class T> void s_senddata(T src, socket_id tid);
     template<class T> T s_recvdata(char *data, DWORD length);
@@ -328,16 +383,16 @@ template<> void socket_connect::s_senddata<std::string>(std::string src, socket_
 template<> Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length);
 
 /*
-	各数据类型以及对应标识
-		标识	数据类型
-		1		Mat
-		2		sample
+        各数据类型以及对应标识
+                标识	数据类型
+                1		Mat
+                2		sample
 
 */
 
 /*
-	堵塞：
-		recv
-		accept
-		lock
+        堵塞：
+                recv
+                accept
+                lock
 */

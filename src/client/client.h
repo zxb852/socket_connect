@@ -13,4 +13,9 @@ public:
 		disconnect();
 		//socketclose();
 	}
+    void updata_alarm_data();
+
+private:
+    vector<string> checkdata();
+
 };
