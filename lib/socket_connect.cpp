@@ -363,14 +363,7 @@ void socket_connect::s_send()
     if(ismain)
         updatesendbuff();
     else
-    {
-        //s_send(0, nullptr, 0);				//发送心跳‘
-
-        if (!send_q_mat.empty())
-        {
-            s_senddata(send_q_mat.front().second,send_q_mat.front().first.first);//发送数据部分以及head的第一位。
-            send_q_mat.pop();
-        }
+    { 
         if (!send_q_sample.empty())
         {
             s_senddata(send_q_sample.front().second, send_q_sample.front().first.first);
@@ -381,15 +374,39 @@ void socket_connect::s_send()
             s_senddata(send_q_login_mes.front().second, send_q_login_mes.front().first.first);
             send_q_login_mes.pop();
         }
+
         if (!send_q_state_mes.empty())
         {
-            s_senddata(send_q_state_mes.front().second, send_q_state_mes.front().first.first);
-            send_q_state_mes.pop();
+            auto &step=send_q_state_mes.front();
+            if(step.second.mode>10 || alarmctrl[0]){
+                s_senddata(step.second, send_q_state_mes.front().first.first);
+                send_q_state_mes.pop();
+                if(step.second.mode<10){
+                    alarmctrl[0]=false;
+                    alarmctrl[1]=true;
+                }
+            }
+        }
+        if (!send_q_mat.empty())
+        {
+            auto &step=send_q_mat.front();
+            if(step.first.first<50 || alarmctrl[1]){
+                s_senddata(step.second,send_q_mat.front().first.first);//发送数据部分以及head的第一位。
+                send_q_mat.pop();
+                if(step.first.first==53){
+                    alarmctrl[1]=false;
+                    alarmctrl[2]=true;
+                }
+            }
         }
         if (!send_q_vedio_name.empty())
         {
-            s_senddata(send_q_vedio_name.front().second, send_q_vedio_name.front().first.first);
-            send_q_vedio_name.pop();
+            if(alarmctrl[2]){
+                s_senddata(send_q_vedio_name.front().second, send_q_vedio_name.front().first.first);
+                send_q_vedio_name.pop();
+                alarmctrl[2]=false;
+                alarmctrl[0]=true;
+            }
         }
     }
 }
@@ -493,6 +510,7 @@ void socket_connect::s_recv()
                             std::string command;
                             command = "mkdir -p " + folderPath;
                             system(command.c_str());
+                            mes.save(basefile+filename+"/"+filename+"_mes.txt");
                             ismode5=true;
                         }
                     }
@@ -614,17 +632,23 @@ void socket_connect::s_senddata(T src, socket_id tid)
         mode = 2;
     else if (typeid(T) == typeid(login_mes))
         mode = 3;
-    else if (typeid(T) == typeid(state_mes))
-    {
-        pnum=-2;
-        mode = 5;
-    }
 
     char data[10000];
 
     memset(data, 0, sizeof(data));				// 对该内存段进行清
     memcpy(data, &src, sizeof(src));			// 把这个结构体中的信息从内存中读入到字符串data中
     //接下来传送temp这个字符串就可以了
+    s_send_base(mode, data, sizeof(src), tid, pnum);
+}
+template<>
+void socket_connect::s_senddata<state_mes>(state_mes src, socket_id tid)
+{
+    char mode = 5;
+    char pnum = -2;
+    char data[10000];
+
+    memset(data, 0, sizeof(data));
+    memcpy(data, &src, sizeof(src));
     s_send_base(mode, data, sizeof(src), tid, pnum);
 }
 
@@ -653,13 +677,11 @@ void socket_connect::s_senddata<Mat>(Mat src, socket_id tid)
     char data[100000]={0};
     for (int i = 0; i < static_cast<int>(data_encode.size()); i++)
         data[i] = data_encode[i];
-    s_send_base(mode, data, data_encode.size(), tid,pum);
-}
+    s_send_base(mode, data, data_encode.size(), tid,pum);}
 
 template<>
 void socket_connect::s_senddata(std::string src, socket_id tid)
 {
-
     char mode = 5;
     char buf[10000];
     int bei = 0, yue = 0;

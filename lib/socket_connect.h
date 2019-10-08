@@ -95,6 +95,7 @@ public:
 
 };
 
+
 struct sample
 {
     int a=0;
@@ -201,6 +202,7 @@ struct state_mes
         std::ifstream inFile;
         inFile.open(filename);
         inFile>>mode>>dev>>year>>mon>>day>>hour>>min>>sec;
+        mode-=48;
     }
 };
 
@@ -275,6 +277,10 @@ public:
     {
         basefile=f;
     }
+    string getbasefile()
+    {
+        return basefile;
+    }
 
     //######外部接口#########
     //发送数据，将数据压入发送队列
@@ -313,6 +319,7 @@ private:
     bool ismain;									// false:子对象（or客户端）  true:主对象
     bool isgen=false;
     bool heart_flag;								//心跳标志位，当==false时，代表对象已断开。
+    bool alarmctrl[3]={true,false,false};           //控制alarm发送顺序。
     std::shared_ptr<bool> d_flag;
     std::map<socket_id, socket_connect*> children;	// 记录socketid与子对象的对应关系
     std::map<socket_id, int> childrenctrl;			// 记录socketid对应子对象的用户类型，0: 初始化  1: 服务器 2: 管理员  3: 普通用户
@@ -378,6 +385,7 @@ private:
     friend void* listencallback_recv(void *soc);
     friend void* client_heart(void *soc);
 };
+template<> void socket_connect::s_senddata<state_mes>(state_mes src, socket_id tid);
 template<> void socket_connect::s_senddata<Mat>(Mat src, socket_id tid);
 template<> void socket_connect::s_senddata<std::string>(std::string src, socket_id tid);
 template<> Mat socket_connect::s_recvdata<Mat>(char *data, DWORD length);

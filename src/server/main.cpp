@@ -5,7 +5,7 @@ using namespace cv;
 
 int main()
 {
-	socketinit();
+    socketinit();
     server s_server;
     //s_server.s_connect("39.108.229.151", 8010);
     s_server.s_connect("127.0.0.1", 8010);
@@ -22,9 +22,11 @@ int main()
 //    s_server.send_decinf(3,mes,test,test,test,"good2.mp4");
 
 
-    sleep(10);
-	s_server.disconnect();
-	socketclose();
-	getchar();
+    sleep(100);
+    s_server.disconnect();
+    socketclose();
+    getchar();
+
+
     return 0;
 }

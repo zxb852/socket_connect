@@ -51,14 +51,13 @@ void server::send_decinf(char tag, state_mes mes,Mat rgb,Mat ir, Mat uv, std::st
     if(tag==3 || tag >10)
     {
         send_buff_push(mes,tag);
-        usleep(200000);
+        //usleep(200000);
         send_buff_push(rgb,51);
         send_buff_push(ir,52);
         send_buff_push(uv,53);
-        usleep(300000);
         send_buff_push(vedio_name,tag);
     }
-    usleep(500000);
+    //usleep(2000000);
 }
 
 void server::update_alarm_data(std::pair<socket_id,vector<string>> alarm_data)
